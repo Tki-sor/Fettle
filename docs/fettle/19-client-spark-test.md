@@ -89,3 +89,37 @@ Tick durations:  2.4/3.1/4.4/8.1;  2.4/3.1/4.7/9.7
 回退把曲线存到 `run/config/spark/profile-*.sparkprofile`；
 我用 `curl -X POST --data-binary @file -H 'Content-Encoding: gzip' https://bytebin.lucko.me/post` 手动补传，拿到 key 后即上面第二条链接。
 
+
+## 19.7 线程级采样（`--thread "Server thread"`）与分段计时：本轮**没有**测到面板收益，原因已定位到场景
+
+按计划跑了两条**锁定 Server thread** 的曲线（同一客户端、同一世界、4096 个面板已放置）：
+
+| 状态 | 采样 | 曲线 |
+| --- | --- | --- |
+| 节流开 `factoryPanelCheckInterval=5` | Server thread，40 s | https://spark.lucko.me/7CqNopXyGG |
+| 节流关 `factoryPanelCheckInterval=1` | Server thread，40 s | https://spark.lucko.me/5bM8znPzfC |
+
+（第二条游戏内上传失败，仍是从 `run/config/spark/profile-*.sparkprofile` 手动补传到 bytebin 得到的 key。）
+
+同时用 `/fettle bench start <tag>` + `bench stop` 做了分段计时（`/fettle feature benchProbes true` 打开探针），两个窗口各 **747 tick**：
+
+| 分段 | 节流开 | 原版 | 差 |
+| --- | --- | --- | --- |
+| `tick_ms`（整 tick） | 3.5842 | 3.5149 | **−1.9%**（在噪声内，方向还不利于我们） |
+| `crafters_tick_ms` | 1.5364 | 1.5345 | −0.1% |
+| `crafters_tick_calls` | 4429.93 / tick | 4430.29 / tick | 0.0% |
+| `panels_tick_ms` | **0.0000** | **0.0000** | — |
+| `panels_tick_calls` | **0.0000** | **0.0000** | — |
+
+**结论：这一轮同样不能证明面板节流。** 关键证据是 `panels_tick_calls = 0`——我放置的那 4096 个面板**根本没有 tick**
+（`benchProbes` 已打开，而同一份 CSV 里 crafters 每 tick 4400 次调用是正常的），所以"节流开/关"没有可作用的对象。
+整 tick 的 −1.9% 是噪声，不能算作回归也不能算作收益。
+
+**下次要拿到客户端面板收益，必须先把"面板在 tick"这件事坐实**（候选原因：面板 behaviour 需要接入网络/被激活才 tick，
+或者放置位置的区块不在客户端 ticking 集合内）。可用的判定手段：
+`/fettle idle report`（看 `FactoryPanelBlockEntity` 是否出现在按类 tick 计数里）→ 若为 0，
+说明场景问题而非优化问题；坐实之后再重跑本节两条曲线即可对齐服务端 B8 的 −72%（那个数字是**面板段落**，不是整 tick）。
+
+记录一下踩坑：`/fettle bench start` **必须带 tag**（`bench start <tag>`），不带 tag 时指令被参数校验拒绝，
+`bench stop` 只会写出一个 0 tick 的空 CSV —— 第一轮我就这么被骗了一次。
+
