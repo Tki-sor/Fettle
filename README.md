@@ -21,6 +21,7 @@ per-feature ledger is [docs/fettle/20-status-ledger.md](Fettle-1.21.1/docs/fettl
 | Train collision | Candidate filter from a per-tick carriage bounding-box snapshot, with a moved-train guard | **−94%** candidates; differential test vs vanilla: **0 mismatches** |
 | Factory panels | Aggregation every N ticks instead of every tick — **opt-in, default = vanilla** | server scaffolding scene: panel section −72%; naturally active client scene: 0.5210 vs 0.5302 ms → **no benefit, unproven** ([docs 19](Fettle-1.21.1/docs/fettle/19-client-spark-test.md)) |
 | Create misc ✅ | `TrackGraph#getConnectionsFrom` allocation, package address regex cache | address cache **~4×** (552→136 ns/op) |
+| Allocation micro-optimisations ⚠️ | Belt shaft lookup (`Optional`→`instanceof`), mounted-storage sync, `SmartBlockEntity` tick | **no steady-state benefit**: HotSpot's escape analysis removes all three (measured 0.0 B/op on two of them), see [docs 22](Fettle-1.21.1/docs/fettle/22-allocation-optimisations.md) |
 | Belt shaft lookup ⚠️ | `BeltBlock#hasShaftTowards`: `Optional` chain replaced by `instanceof` | **no measurable benefit** on a real belt (9.14/12.09/11.49 vs 10.17/11.15 ns/op) — kept because it is behaviour-equivalent, see [docs 21](Fettle-1.21.1/docs/fettle/21-a8-belt-shaft.md) |
 | BE observation + sleeping pilot | Zero-behaviour-change observation of per-class tick/change/sync counts, plus an opt-in sleeping pilot with config whitelist, heartbeats and auto-blacklist | steady state **19 skips : 1 heartbeat** (95% skipped) |
 

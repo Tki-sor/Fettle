@@ -57,7 +57,94 @@ public final class CreateMicroBenchmarks {
         if ("beltShaft".equals(name)) {
             return beltShaft(level, iterations);
         }
+        if ("mountedStorageTick".equals(name)) {
+            return mountedStorageTick(iterations);
+        }
+        if ("smartBETick".equals(name)) {
+            return smartBETick(level, iterations);
+        }
         return "unknown micro benchmark: " + name;
+    }
+
+    /** Allocated bytes of the calling thread, or -1 when the JVM does not expose it. */
+    private static long allocatedBytes() {
+        try {
+            com.sun.management.ThreadMXBean bean =
+                    (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
+            return bean.getThreadAllocatedBytes(Thread.currentThread().getId());
+        } catch (Throwable t) {
+            return -1L;
+        }
+    }
+
+    /**
+     * ① {@code MountedStorageManager#tick}: a contraption without synced item/fluid storage makes the
+     * vanilla path allocate two HashMaps and do nothing else, so the fast path returns first. The
+     * entity argument is never dereferenced on that path, hence {@code null}.
+     */
+    private static String mountedStorageTick(int iterations) {
+        com.simibubi.create.content.contraptions.MountedStorageManager manager =
+                new com.simibubi.create.content.contraptions.MountedStorageManager();
+        try {
+            // The real thing is filled in by AbstractContraptionEntity#initialize; on a bare manager the
+            // two immutable maps are null, so stand them in as empty - that is the case under study.
+            for (String fieldName : new String[] {"syncedItems", "syncedFluids"}) {
+                java.lang.reflect.Field field =
+                        com.simibubi.create.content.contraptions.MountedStorageManager.class
+                                .getDeclaredField(fieldName);
+                field.setAccessible(true);
+                field.set(manager, com.google.common.collect.ImmutableMap.of());
+            }
+        } catch (Throwable t) {
+            return "mountedStorageTick: could not prepare the manager: " + t;
+        }
+        for (int i = 0; i < 20_000; i++) {
+            manager.tick(null);
+        }
+        long bytesBefore = allocatedBytes();
+        long start = System.nanoTime();
+        for (int i = 0; i < iterations; i++) {
+            manager.tick(null);
+        }
+        long elapsed = System.nanoTime() - start;
+        long bytes = allocatedBytes();
+        if (bytes < 0 || bytesBefore < 0) {
+            return String.format(Locale.ROOT, "mountedStorageTick: %.2f ns/op (%d iterations)",
+                    (double) elapsed / iterations, iterations);
+        }
+        return String.format(Locale.ROOT, "mountedStorageTick: %.2f ns/op, %.1f B/op (%d iterations)",
+                (double) elapsed / iterations, (double) (bytes - bytesBefore) / iterations, iterations);
+    }
+
+    /**
+     * ② {@code SmartBlockEntity#tick} on a real block entity in a forced chunk: reports the per-tick
+     * allocation so we can tell whether the lambda/iterator it creates is actually materialised.
+     */
+    private static String smartBETick(ServerLevel level, int iterations) {
+        net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(12, 100, 12);
+        level.setChunkForced(pos.getX() >> 4, pos.getZ() >> 4, true);
+        level.getChunk(pos);
+        level.setBlock(pos, com.simibubi.create.AllBlocks.SHAFT.get().defaultBlockState(), 3);
+        if (!(level.getBlockEntity(pos)
+                instanceof com.simibubi.create.foundation.blockEntity.SmartBlockEntity smart)) {
+            return "smartBETick: no SmartBlockEntity at " + pos.toShortString();
+        }
+        for (int i = 0; i < 20_000; i++) {
+            smart.tick();
+        }
+        long bytesBefore = allocatedBytes();
+        long start = System.nanoTime();
+        for (int i = 0; i < iterations; i++) {
+            smart.tick();
+        }
+        long elapsed = System.nanoTime() - start;
+        long bytes = allocatedBytes();
+        if (bytes < 0 || bytesBefore < 0) {
+            return String.format(Locale.ROOT, "smartBETick: %.2f ns/op (%d iterations)",
+                    (double) elapsed / iterations, iterations);
+        }
+        return String.format(Locale.ROOT, "smartBETick: %.2f ns/op, %.1f B/op (%d iterations)",
+                (double) elapsed / iterations, (double) (bytes - bytesBefore) / iterations, iterations);
     }
 
     /**

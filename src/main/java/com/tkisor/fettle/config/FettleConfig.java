@@ -29,6 +29,7 @@ public final class FettleConfig {
     private static final ModConfigSpec.IntValue BE_SLEEPING_OBSERVE_TICKS;
     private static final ModConfigSpec.IntValue BE_SLEEPING_MAX_SKIP_TICKS;
     private static final ModConfigSpec.IntValue BE_SLEEPING_BLACKLIST_WAKES;
+    private static final ModConfigSpec.BooleanValue CREATE_MOUNTED_STORAGE_FAST_PATH;
     private static final ModConfigSpec.BooleanValue BENCH_PROBES;
     private static final ModConfigSpec.BooleanValue DEBUG_PANEL_KEEP_ALIVE;
     private static final ModConfigSpec.BooleanValue MIXIN_LOG;
@@ -139,6 +140,11 @@ public final class FettleConfig {
                         "at 5 versus 0.5302 ms at 1 - no difference. See docs/fettle/19-client-spark-test.md.",
                         "Set 5 only if you are experimenting; throughput is unchanged either way.")
                 .defineInRange("factoryPanelCheckInterval", 1, 1, 100);
+        CREATE_MOUNTED_STORAGE_FAST_PATH = b
+                .comment("MountedStorageManager#tick: skip the two per-sync HashMap allocations when a",
+                        "contraption has no synced item/fluid storage. The vanilla path is otherwise a no-op,",
+                        "so this early return is behaviour-identical. Measurable with /fettle micro mountedStorageTick.")
+                .define("mountedStorageFastPath", true);
         CREATE_KINETIC_INCREMENTAL = b
                 .comment("KineticNetwork#updateStressFor: update the running stress sum in O(1) instead of",
                         "re-summing (and re-validating) every member. The exact scan runs once per server tick.")
@@ -241,6 +247,11 @@ public final class FettleConfig {
 
     public static boolean createBeltShaftLookup() {
         return createEnabled() && get(CREATE_BELT_SHAFT, true);
+    }
+
+    public static boolean createMountedStorageFastPath() {
+        return createEnabled() && boolOverride("mountedStorageFastPath",
+                get(CREATE_MOUNTED_STORAGE_FAST_PATH, true));
     }
 
     public static boolean observe() {

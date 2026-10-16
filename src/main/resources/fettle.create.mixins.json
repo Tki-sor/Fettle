@@ -13,6 +13,7 @@
     "TrainCollisionMixin",
     "TravellingPointPositionMixin",
     "BeltBlockMixin",
+    "MountedStorageFastPathMixin",
     "FactoryPanelBehaviourMixin",
     "PackageItemMixin",
     "FactoryPanelBenchMixin",

@@ -29,6 +29,7 @@ public final class HotFlags {
     public static volatile boolean BENCH_PROBES = false;
     public static volatile boolean DEBUG_PANEL_KEEP_ALIVE = false;
     public static volatile boolean KINETIC_INCREMENTAL_STRESS = true;
+    public static volatile boolean MOUNTED_STORAGE_FAST_PATH = true;
     public static volatile boolean KINETIC_VALIDITY_CACHE = true;
     public static volatile boolean TRAIN_COLLISION_INDEX = true;
     public static volatile boolean TRAIN_COLLISION_VERIFY_MOVED = true;
@@ -58,6 +59,7 @@ public final class HotFlags {
         BENCH_PROBES = FettleConfig.benchProbes();
         DEBUG_PANEL_KEEP_ALIVE = FettleConfig.debugPanelKeepAlive();
         KINETIC_INCREMENTAL_STRESS = FettleConfig.createKineticIncrementalStress();
+        MOUNTED_STORAGE_FAST_PATH = FettleConfig.createMountedStorageFastPath();
         KINETIC_VALIDITY_CACHE = FettleConfig.createKineticValidityCache();
         TRAIN_COLLISION_INDEX = FettleConfig.createTrainCollisionIndex();
         TRAIN_COLLISION_VERIFY_MOVED = FettleConfig.createTrainCollisionVerifyMoved();
