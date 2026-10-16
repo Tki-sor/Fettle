@@ -88,6 +88,60 @@ public final class CreateDebugScenarios {
                 placed, origin.toShortString());
     }
 
+    /**
+     * Places the panel grid and then wires each panel the way the in-game UI does: the behaviour is
+     * marked active and given a symmetric connection to a neighbouring panel. That satisfies Create's
+     * own liveness check ({@code FactoryPanelBlockEntity#lazyTick} erases a panel whose
+     * {@code activePanels()} is zero), so the panels tick through the normal code path with no debug
+     * scaffolding in the tick itself - unlike {@code debugPanelKeepAlive}, which cancels that check.
+     */
+    public static String wirePanelsAlive(ServerLevel level, BlockPos origin, int side, int spacing) {
+        placePanels(level, origin, side, spacing);
+        int wired = 0;
+        try {
+            java.lang.reflect.Field panelsField =
+                    com.simibubi.create.content.logistics.factoryBoard.FactoryPanelBlockEntity.class
+                            .getDeclaredField("panels");
+            panelsField.setAccessible(true);
+            for (int i = 0; i < side * side; i++) {
+                int gx = i % side;
+                int x = origin.getX() + gx * spacing;
+                int z = origin.getZ() + (i / side) * spacing;
+                BlockPos panelPos = new BlockPos(x, origin.getY(), z).south();
+                BlockPos neighbour = new BlockPos(origin.getX() + (gx == 0 ? 1 : gx - 1) * spacing,
+                        origin.getY(), z).south();
+                if (!(level.getBlockEntity(panelPos)
+                        instanceof com.simibubi.create.content.logistics.factoryBoard.FactoryPanelBlockEntity be)) {
+                    continue;
+                }
+                Object value = panelsField.get(be);
+                if (!(value instanceof java.util.Map<?, ?> panels)) {
+                    continue;
+                }
+                for (Object entry : panels.values()) {
+                    if (!(entry
+                            instanceof com.simibubi.create.content.logistics.factoryBoard.FactoryPanelBehaviour behaviour)) {
+                        continue;
+                    }
+                    behaviour.active = true;
+                    var from = new com.simibubi.create.content.logistics.factoryBoard.FactoryPanelPosition(
+                            be.getBlockPos(), behaviour.slot);
+                    var to = new com.simibubi.create.content.logistics.factoryBoard.FactoryPanelPosition(
+                            neighbour, behaviour.slot);
+                    behaviour.targeting.add(to);
+                    behaviour.targetedBy.put(to,
+                            new com.simibubi.create.content.logistics.factoryBoard.FactoryPanelConnection(to, 0));
+                    wired++;
+                }
+                be.setChanged();
+                be.notifyUpdate();
+            }
+        } catch (Throwable t) {
+            return "panel wiring failed: " + t;
+        }
+        return String.format(Locale.ROOT, "placed and wired %d panels at %s", wired, origin.toShortString());
+    }
+
     public static String placePanels(ServerLevel level, BlockPos origin, int side, int spacing) {
         BlockState support = Blocks.STONE.defaultBlockState();
         BlockState panel = AllBlocks.FACTORY_GAUGE.get()

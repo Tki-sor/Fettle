@@ -141,6 +141,14 @@ public final class FettleCommands {
                                                                 StringArgumentType.getString(ctx, "class"),
                                                                 IntegerArgumentType.getInteger(ctx, "observe"),
                                                                 IntegerArgumentType.getInteger(ctx, "maxSkip"))))))))
+                        .then(Commands.literal("panelwire")
+                                .then(Commands.argument("side", IntegerArgumentType.integer(1, 64))
+                                        .then(Commands.argument("spacing", IntegerArgumentType.integer(2, 16))
+                                                .executes(ctx -> reply(ctx.getSource(), wirePanelsAlive(
+                                                        ctx.getSource().getLevel(),
+                                                        BlockPos.containing(ctx.getSource().getPosition()),
+                                                        IntegerArgumentType.getInteger(ctx, "side"),
+                                                        IntegerArgumentType.getInteger(ctx, "spacing")))))))
                         .then(Commands.literal("panelpack")
                                 .then(Commands.argument("side", IntegerArgumentType.integer(1, 64))
                                         .then(Commands.argument("spacing", IntegerArgumentType.integer(2, 16))
@@ -282,6 +290,21 @@ public final class FettleCommands {
         } catch (Throwable t) {
             Throwable cause = t.getCause() != null ? t.getCause() : t;
             return "debug trains failed: " + cause;
+        }
+    }
+
+    private static String wirePanelsAlive(net.minecraft.server.level.ServerLevel level, BlockPos origin,
+                                         int side, int spacing) {
+        try {
+            Class<?> scenarios = Class.forName("com.tkisor.fettle.bench.CreateDebugScenarios");
+            return (String) scenarios.getMethod("wirePanelsAlive",
+                            net.minecraft.server.level.ServerLevel.class, BlockPos.class, int.class, int.class)
+                    .invoke(null, level, origin, side, spacing);
+        } catch (ClassNotFoundException e) {
+            return "debug panelwire needs Create (not installed)";
+        } catch (Throwable t) {
+            Throwable cause = t.getCause() != null ? t.getCause() : t;
+            return "debug panelwire failed: " + cause;
         }
     }
 

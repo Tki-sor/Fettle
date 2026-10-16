@@ -204,3 +204,59 @@ panels_tick_calls = 33,792 /tick    panels_tick_ms = 1.865 ms/tick    tick_ms = 
 - **B（我可以试）**：逆向 `FactoryPanelBlockEntity` 的 NBT，写一个"批量连线"的调试指令，在客户端脚本化造出自然活跃的面板网络；
 - **C**：接受"面板节流只在服务端分段测量里有数据"这一现状，把它在文档里标注为**服务端验证、客户端未复现**。
 
+
+## 19.10 方案 B 完成：脚本化"自然活跃"面板网络 → 面板节流**在这类场景下没有收益**（并且 B8 需要重新审视）
+
+### 做法（新增 `/fettle debug panelwire <side> <spacing>`）
+
+按 Create 自己的存活判定来接线，而不是取消它：
+
+- `FactoryPanelBlockEntity#lazyTick` 会删除 `activePanels() == 0` 的面板；`activePanels()` 统计的是
+  `FactoryPanelBehaviour#isActive()`，而 `isActive()` 直接返回 `active` 字段；
+- 所以 `panelwire` 对每块面板：置 `behaviour.active = true`，并**按 UI 连线的语义**补上对称连接
+  （`targeting` + `targetedBy`，`FactoryPanelPosition`/`FactoryPanelConnection` 都是 Create 的公开类型）；
+- `debugPanelKeepAlive`（我们自己的脚手架、cancel 掉 lazyTick）**全程关闭**。
+
+### 验证：面板活着并且在 tick（无脚手架）
+
+```
+/fettle feature debugPanelKeepAlive false
+/fettle debug panelwire 40 2
+/fettle bench start wired （612 tick）
+panels_tick_calls = 12,769 /tick    panels_tick_ms = 0.510 ms/tick    tick_ms = 4.873
+```
+
+对比 19.8 那轮 keep-alive 强行吊活的场景：`panels_tick_ms` 从 **1.86 ms 降到 0.51 ms**——
+说明**keep-alive 让面板每 tick 做了本不该做的聚合工作**，那个场景本身是被脚手架扭曲的。
+
+### 正式 A/B（两条 693-tick 窗口）
+
+| 分段 | 节流 =5 | 原版 =1 | 差 |
+| --- | --- | --- | --- |
+| `tick_ms` | 4.6161 | 4.5260 | −2.0% |
+| `panels_tick_ms` | 0.5210 | 0.5302 | **+1.8%** |
+| `crafters_tick_ms` | 1.6257 | 1.5890 | −2.3% |
+| `panels_tick_calls` | 12781.5 | 12771.7 | −0.1% |
+| `crafters_tick_calls` | 4526.2 | 4523.2 | −0.1% |
+
+**面板段落两态相同（0.521 vs 0.530 ms，差异是噪声且方向互斥），即在这类场景里节流没有收益。**
+原因看起来是：真实激活的空闲面板本来就走"轻"路径（0.52 ms/12.8k 次调用），
+节流省下的那部分聚合工作在总耗时里不占分量。
+
+### ⚠️ 由此必须重新审视 B8 的 −72%
+
+B8 那次（面板段落 1.16–1.30 → 0.35–0.37 ms）是在**keep-alive 强行吊活**的场景里测的；
+本轮显示那个场景让面板每 tick 多做约 **3.6 倍**的工作（1.86 vs 0.51 ms）。
+也就是说：**B8 很可能测的是脚手架诱发的工作量被节流消掉的部分，而不是真实玩法中的工作量。**
+在拿到"真实产线（有物流流量、面板自然联网）"的测量之前，面板节流这个优化**应当被标记为未证实**，
+不能按 −72% 对外宣称。
+
+### 同轮线程级曲线（面板自然活跃）
+
+| 状态 | 曲线 |
+| --- | --- |
+| 节流 =5 | https://spark.lucko.me/LryJSyi4BM |
+| 原版 =1 | https://spark.lucko.me/6nDvqJ28va |
+
+（两条游戏内上传成功。）
+
