@@ -24,6 +24,37 @@ public final class CreateDebugScenarios {
     private CreateDebugScenarios() {
     }
 
+    /** Reports what is actually at a position: block, block entity, kinetic speed and tank contents. */
+    public static String fluidCheck(ServerLevel level, BlockPos pos) {
+        StringBuilder sb = new StringBuilder();
+        var state = level.getBlockState(pos);
+        sb.append(state.getBlock()).append(" at ").append(pos.toShortString());
+        var be = level.getBlockEntity(pos);
+        if (be == null) {
+            return sb.append(" be=none").toString();
+        }
+        sb.append(" be=").append(be.getClass().getSimpleName());
+        if (be instanceof com.simibubi.create.content.kinetics.base.KineticBlockEntity kinetic) {
+            sb.append(" speed=").append(String.format(Locale.ROOT, "%.1f", kinetic.getSpeed()));
+        }
+        try {
+            var handler = level.getCapability(net.neoforged.neoforge.capabilities.Capabilities.FluidHandler.BLOCK,
+                    pos, null);
+            if (handler == null) {
+                sb.append(" tank=none");
+            } else {
+                for (int i = 0; i < handler.getTanks(); i++) {
+                    sb.append(" tank").append(i).append('=').append(handler.getFluidInTank(i).getFluid())
+                            .append(':').append(handler.getFluidInTank(i).getAmount())
+                            .append('/').append(handler.getTankCapacity(i));
+                }
+            }
+        } catch (Throwable t) {
+            sb.append(" tankErr=").append(t);
+        }
+        return sb.toString();
+    }
+
     /** Places {@code count} shafts in a line so they merge into one kinetic network. */
     public static String placeShaftLine(ServerLevel level, BlockPos origin, int count, int y) {
         BlockState shaft = AllBlocks.SHAFT.get()
@@ -180,14 +211,25 @@ public final class CreateDebugScenarios {
         boolean pump = level.setBlock(pumpPos, com.simibubi.create.AllBlocks.MECHANICAL_PUMP.get()
                 .defaultBlockState()
                 .setValue(net.minecraft.world.level.block.DirectionalBlock.FACING, Direction.UP), 3);
-        boolean motor = level.setBlock(origin.above(11).east(),
-                com.simibubi.create.AllBlocks.CREATIVE_MOTOR.get().defaultBlockState(), 3);
-        boolean tank = level.setBlock(origin.above(12), com.simibubi.create.AllBlocks.FLUID_TANK.get().defaultBlockState(), 3);
+        // the pump's shaft runs along its facing axis, so its motor has to sit above it, coaxial
+        boolean motor = level.setBlock(origin.above(12),
+                com.simibubi.create.AllBlocks.CREATIVE_MOTOR.get().defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.DirectionalBlock.FACING, Direction.DOWN), 3);
+        // the pulley's shaft is horizontal; one of these four is coaxial with it
+        int pulleyMotors = 0;
+        for (Direction side : new Direction[] {Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST}) {
+            if (level.setBlock(pulleyPos.relative(side),
+                    com.simibubi.create.AllBlocks.CREATIVE_MOTOR.get().defaultBlockState()
+                            .setValue(net.minecraft.world.level.block.DirectionalBlock.FACING, side.getOpposite()), 3)) {
+                pulleyMotors++;
+            }
+        }
+        boolean tank = level.setBlock(origin.above(13), com.simibubi.create.AllBlocks.FLUID_TANK.get().defaultBlockState(), 3);
         Object pulleyBe = level.getBlockEntity(pulleyPos);
         return String.format(Locale.ROOT,
-                "fluidScene r=%d floor=%d water=%d pulley=%s(be=%s) pipe=%s pump=%s motor=%s tank=%s at %s",
+                "fluidScene r=%d floor=%d water=%d pulley=%s(be=%s) pipe=%s pump=%s motor=%s pulleyMotors=%d tank=%s at %s",
                 r, floor, filled, pulley, pulleyBe == null ? "none" : pulleyBe.getClass().getSimpleName(),
-                pipe, pump, motor, tank, pulleyPos.toShortString());
+                pipe, pump, motor, pulleyMotors, tank, pulleyPos.toShortString());
     }
     public static String placePanels(ServerLevel level, BlockPos origin, int side, int spacing) {
         BlockState support = Blocks.STONE.defaultBlockState();

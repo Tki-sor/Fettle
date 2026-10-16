@@ -141,6 +141,15 @@ public final class FettleCommands {
                                                                 StringArgumentType.getString(ctx, "class"),
                                                                 IntegerArgumentType.getInteger(ctx, "observe"),
                                                                 IntegerArgumentType.getInteger(ctx, "maxSkip"))))))))
+                        .then(Commands.literal("fluidcheck")
+                                .then(Commands.argument("x", IntegerArgumentType.integer())
+                                        .then(Commands.argument("y", IntegerArgumentType.integer())
+                                                .then(Commands.argument("z", IntegerArgumentType.integer())
+                                                        .executes(ctx -> reply(ctx.getSource(), fluidCheck(
+                                                                ctx.getSource().getLevel(),
+                                                                new BlockPos(IntegerArgumentType.getInteger(ctx, "x"),
+                                                                        IntegerArgumentType.getInteger(ctx, "y"),
+                                                                        IntegerArgumentType.getInteger(ctx, "z")))))))))
                         .then(Commands.literal("fluidscene")
                                 .then(Commands.argument("radius", IntegerArgumentType.integer(2, 24))
                                         .executes(ctx -> reply(ctx.getSource(), buildFluidScene(
@@ -329,6 +338,20 @@ public final class FettleCommands {
         } catch (Throwable t) {
             Throwable cause = t.getCause() != null ? t.getCause() : t;
             return "debug fluidscene failed: " + cause;
+        }
+    }
+
+    private static String fluidCheck(net.minecraft.server.level.ServerLevel level, BlockPos pos) {
+        try {
+            Class<?> scenarios = Class.forName("com.tkisor.fettle.bench.CreateDebugScenarios");
+            return (String) scenarios.getMethod("fluidCheck",
+                            net.minecraft.server.level.ServerLevel.class, BlockPos.class)
+                    .invoke(null, level, pos);
+        } catch (ClassNotFoundException e) {
+            return "debug fluidcheck needs Create (not installed)";
+        } catch (Throwable t) {
+            Throwable cause = t.getCause() != null ? t.getCause() : t;
+            return "debug fluidcheck failed: " + cause;
         }
     }
 
