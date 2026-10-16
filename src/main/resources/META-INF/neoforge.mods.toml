@@ -1,0 +1,34 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "${mod_license}"
+
+[[mods]]
+modId = "${mod_id}"
+version = "${mod_version}"
+displayName = "${mod_name}"
+description = '''${mod_description}'''
+authors = "${mod_author}"
+
+# NeoForge 1.21.1 reads mixin configs from this TOML section (verified against FML 4.0.42
+# ModFileParser.getMixinConfigs); the legacy "MixinConfigs" jar-manifest entry is NOT read.
+[[mixins]]
+config = "fettle.mixins.json"
+
+# Only added to the mixin environment when Create is present.
+[[mixins]]
+config = "fettle.create.mixins.json"
+requiredMods = ["create"]
+
+[[dependencies.${mod_id}]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1.0,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1,1.22)"
+ordering = "NONE"
+side = "BOTH"

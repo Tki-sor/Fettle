@@ -1,0 +1,24 @@
+{
+  "tag": "pan-off-1",
+  "scenario": "panels",
+  "panels": 200,
+  "belts": 200,
+  "crafters": 100,
+  "scale_value": 200,
+  "warmup_s": 5,
+  "sample_s": 30,
+  "ticks": 560,
+  "mean_ms": 3.733219464285714,
+  "p50_ms": 3.5052,
+  "p95_ms": 5.2373,
+  "p99_ms": 7.05,
+  "max_ms": 9.5149,
+  "raw_csv": "fettle-ticks-pan-off-1.csv",
+  "drop_first": 40,
+  "sections": {
+    "panels_tick_ms": 0.2293535714285714,
+    "crafters_tick_ms": 0.9762098214285715,
+    "panels_tick_calls": 3600.0,
+    "crafters_tick_calls": 2522.0
+  }
+}

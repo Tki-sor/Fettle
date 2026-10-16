@@ -1,0 +1,24 @@
+{
+  "tag": "bigpan-on-1",
+  "scenario": "panels",
+  "panels": 200,
+  "belts": 200,
+  "crafters": 100,
+  "scale_value": 200,
+  "warmup_s": 5,
+  "sample_s": 30,
+  "ticks": 560,
+  "mean_ms": 6.405669464285714,
+  "p50_ms": 6.3224,
+  "p95_ms": 8.5284,
+  "p99_ms": 9.6102,
+  "max_ms": 10.268,
+  "raw_csv": "fettle-ticks-bigpan-on-1.csv",
+  "drop_first": 40,
+  "sections": {
+    "panels_tick_ms": 0.35265214285714286,
+    "crafters_tick_ms": 0.9375283928571428,
+    "panels_tick_calls": 18000.0,
+    "crafters_tick_calls": 2522.0
+  }
+}

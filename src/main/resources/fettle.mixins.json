@@ -1,0 +1,20 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.tkisor.fettle.mixin",
+  "plugin": "com.tkisor.fettle.mixin.FettleMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "accessor.RecipeManagerAccessor",
+    "accessor.KineticNetworkAccessor",
+    "bench.MinecraftServerTickMixin",
+    "observe.BlockEntityChangedMixin",
+    "observe.BlockEntitySleepStateMixin",
+    "observe.BlockEntityTickerMixin",
+    "recipe.RecipeManagerMixin"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

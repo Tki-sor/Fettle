@@ -1,0 +1,26 @@
+scenario,build,scale_value,scale_label,mspt_p95,mspt_p95_err
+crafters,fettle-on,202,mechanical crafters,0.8446,0.0
+crafters,fettle-off,202,mechanical crafters,1.0824,0.0
+crafters,fettle-on,202,mechanical crafters,1.0034,0.0
+crafters,fettle-off,202,mechanical crafters,0.7398,0.0
+crafters,fettle-on,202,mechanical crafters,0.8932,0.0
+crafters,fettle-off,202,mechanical crafters,0.8543,0.0
+crafters,heavy-on-1,3000,mechanical crafters,0.9425,0.0
+crafters,probe2,3000,factory gauges,0.7934,0.0
+crafters,heavy-on-1,3000,mechanical crafters,6.9607,0.0
+crafters,h-on-1,3000,mechanical crafters,4.6052,0.0
+crafters,h-off-1,3000,mechanical crafters,4.9155,0.0
+crafters,h-on-2,3000,mechanical crafters,4.5815,0.0
+crafters,h-off-2,3000,mechanical crafters,4.6532,0.0
+crafters,hf-on-1,3002,mechanical crafters,5.1452,0.0
+crafters,hf-off-1,3002,mechanical crafters,5.4789,0.0
+crafters,cf-off-a,100,factory gauges,4.4865,0.0
+crafters,cf-on-a,100,factory gauges,5.9870,0.0
+crafters,cf-off-b,100,factory gauges,4.4475,0.0
+crafters,cf-on-b,100,factory gauges,4.4669,0.0
+panels,pan-off-1,200,factory gauges,5.2373,0.0
+panels,pan-on-1,200,factory gauges,4.9729,0.0
+panels,bigpan-off-1,200,factory gauges,9.1667,0.0
+panels,bigpan-on-1,200,factory gauges,8.5284,0.0
+panels,bigpan-on-2,200,factory gauges,8.6864,0.0
+panels,bigpan-off-2,200,factory gauges,11.1224,0.0

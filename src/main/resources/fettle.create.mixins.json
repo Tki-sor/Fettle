@@ -1,0 +1,24 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.tkisor.fettle.mixin.create",
+  "plugin": "com.tkisor.fettle.mixin.FettleMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "FactoryPanelDebugMixin",
+    "observe.SmartBlockEntityProbeMixin",
+    "KineticNetworkIncrementalMixin",
+    "KineticNetworkLookupMixin",
+    "TrackGraphMixin",
+    "TrainCollisionMixin",
+    "TravellingPointPositionMixin",
+    "BeltBlockMixin",
+    "FactoryPanelBehaviourMixin",
+    "PackageItemMixin",
+    "FactoryPanelBenchMixin",
+    "MechanicalCrafterBenchMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

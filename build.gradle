@@ -1,0 +1,88 @@
+plugins {
+    id 'idea'
+    id 'net.neoforged.moddev' version '2.0.107'
+}
+
+apply from: './gradle/java.gradle'
+
+version = mod_version
+group = 'com.tkisor.fettle'
+base {
+    archivesName = "fettle-${minecraft_version}"
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.neoforged.net/releases' }
+}
+
+dependencies {
+    // Create is only needed to compile the mixins that target its classes; it is never bundled.
+    // The jar is downloaded from Modrinth (see libs/README.md) and is git-ignored.
+    compileOnly files('libs/create-1.21.1-6.0.10.jar')
+    // Create bundles Flywheel, Ponder and Registrate as jar-in-jar; their classes appear in Create's
+    // own class hierarchy, so they must be on the compile classpath too.
+    compileOnly fileTree(dir: 'libs/jij', include: ['*.jar'])
+}
+
+neoForge {
+    version = neo_version
+
+    if (parchment_version != 'none') {
+        parchment {
+            minecraftVersion = parchment_minecraft_version
+            mappingsVersion = parchment_version
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+
+    runs {
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            jvmArgument '-XX:+IgnoreUnrecognizedVMOptions'
+            jvmArgument '-Dmixin.debug.verbose=true'
+            jvmArgument '-Dmixin.debug.export=true'
+            // No feature switches here on purpose: every Fettle feature is controlled by its own
+            // config option, and measurement modes are runtime-toggled with /fettle feature.
+        }
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '--nogui'
+            gameDirectory = file('run/server')
+        }
+        data {
+            clientData()
+        }
+    }
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+        mod_id             : mod_id,
+        mod_name           : mod_name,
+        mod_author         : mod_author,
+        mod_version        : mod_version,
+        mod_description    : mod_description,
+        mod_license        : mod_license,
+        minecraft_version  : minecraft_version,
+        neo_version        : neo_version
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/neoforge.mods.toml']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+jar {
+    manifest.attributes([
+        'MixinConfigs': 'fettle.mixins.json'
+    ])
+}

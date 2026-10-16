@@ -1,0 +1,24 @@
+{
+  "tag": "cf-off-a",
+  "scenario": "crafters",
+  "panels": 200,
+  "belts": 200,
+  "crafters": 100,
+  "scale_value": 100,
+  "warmup_s": 5,
+  "sample_s": 30,
+  "ticks": 560,
+  "mean_ms": 3.3299232142857145,
+  "p50_ms": 3.2296,
+  "p95_ms": 4.4865,
+  "p99_ms": 6.8217,
+  "max_ms": 7.9972,
+  "raw_csv": "fettle-ticks-cf-off-a.csv",
+  "drop_first": 40,
+  "sections": {
+    "panels_tick_ms": 0.0,
+    "crafters_tick_ms": 1.141399107142857,
+    "panels_tick_calls": 0.0,
+    "crafters_tick_calls": 3002.0
+  }
+}

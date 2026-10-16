@@ -1,0 +1,4 @@
+{
+  "fettle.configuration.title": "Fettle Config",
+  "fettle.configuration.enabled": "Master switch (off = vanilla behaviour, for A/B benchmarks)"
+}

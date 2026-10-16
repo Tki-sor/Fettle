@@ -1,0 +1,24 @@
+{
+  "tag": "fettle-on",
+  "scenario": "panels",
+  "panels": 400,
+  "belts": 200,
+  "crafters": 100,
+  "scale_value": 400,
+  "warmup_s": 30,
+  "sample_s": 60,
+  "ticks": 1160,
+  "mean_ms": 0.16688956896551724,
+  "p50_ms": 0.1339,
+  "p95_ms": 0.3854,
+  "p99_ms": 0.4345,
+  "max_ms": 0.6622,
+  "raw_csv": "fettle-ticks-fettle-on.csv",
+  "drop_first": 40,
+  "sections": {
+    "panels_tick_ms": 0.0,
+    "crafters_tick_ms": 0.0,
+    "panels_tick_calls": 0.0,
+    "crafters_tick_calls": 0.0
+  }
+}

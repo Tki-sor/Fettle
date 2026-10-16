@@ -1,0 +1,23 @@
+# Gradle / build output
+.gradle/
+build/
+out/
+
+# Local runtime (dev server, worlds, logs, downloaded server jars, benchmark CSVs)
+run/
+
+# Third-party jars used only for compilation (see libs/README.md). Never redistributed.
+libs/*.jar
+libs/jij/
+
+# IDE
+.idea/
+*.iml
+*.ipc
+
+# Logs / benchmark artefacts that may appear outside run/
+*.log
+fettle-ticks-*.csv
+fettle-observe.csv
+*.toml.bak
+*.bak

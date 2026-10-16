@@ -1,0 +1,24 @@
+{
+  "tag": "h-on-1",
+  "scenario": "crafters",
+  "panels": 200,
+  "belts": 200,
+  "crafters": 100,
+  "scale_value": 3000,
+  "warmup_s": 5,
+  "sample_s": 30,
+  "ticks": 560,
+  "mean_ms": 3.20673625,
+  "p50_ms": 3.0164,
+  "p95_ms": 4.6052,
+  "p99_ms": 7.0119,
+  "max_ms": 9.8661,
+  "raw_csv": "fettle-ticks-h-on-1.csv",
+  "drop_first": 40,
+  "sections": {
+    "panels_tick_ms": 0.0,
+    "crafters_tick_ms": 1.1374978571428571,
+    "panels_tick_calls": 0.0,
+    "crafters_tick_calls": 3002.0
+  }
+}

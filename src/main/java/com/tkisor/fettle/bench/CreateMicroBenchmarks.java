@@ -1,0 +1,363 @@
+package com.tkisor.fettle.bench;
+
+import com.simibubi.create.content.logistics.box.PackageItem;
+import com.simibubi.create.content.trains.graph.TrackEdge;
+import com.simibubi.create.content.trains.graph.TrackGraph;
+import com.simibubi.create.content.trains.graph.TrackNode;
+import com.simibubi.create.content.trains.graph.TrackNodeLocation;
+import com.tkisor.fettle.config.HotFlags;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import net.minecraft.core.NonNullList;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.CraftingInput;
+import net.minecraft.world.item.crafting.CraftingRecipe;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.RecipeManager;
+import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.world.phys.Vec3;
+
+/**
+ * Micro benchmarks for Create / vanilla paths that a scripted world cannot reach.
+ *
+ * <p>Called reflectively from {@code /fettle micro ...} so this class - which links against Create
+ * and against game classes - only loads when it is actually used.
+ *
+ * <p>Each benchmark runs the same loop with the feature switched on and off via
+ * {@code /fettle feature ...}, inside one JVM, which removes JIT and machine drift.
+ */
+public final class CreateMicroBenchmarks {
+
+    private CreateMicroBenchmarks() {
+    }
+
+    public static String run(String name, ServerLevel level, int iterations) {
+        if ("matchAddress".equals(name)) {
+            return matchAddress(iterations);
+        }
+        if ("trackGraphMiss".equals(name)) {
+            return trackGraphMiss(iterations);
+        }
+        if ("getRecipeFor".equals(name)) {
+            return getRecipeFor(level, iterations);
+        }
+        if ("travelPointPosition".equals(name)) {
+            return travelPointPosition(iterations);
+        }
+        if ("collisionFilter".equals(name)) {
+            return collisionFilter();
+        }
+        if ("kineticStress".equals(name)) {
+            return kineticStress(level, iterations);
+        }
+        return "unknown micro benchmark: " + name;
+    }
+
+    /**
+     * Models the train collision workload: the same travelling point is asked for its world position
+     * many times within one tick (O(T^2 * C) in {@code Train#findCollidingTrain}).
+     */
+    private static String travelPointPosition(int iterations) {
+        TrackNodeLocation locationA = new TrackNodeLocation(0, 0, 0).in(net.minecraft.world.level.Level.OVERWORLD);
+        TrackNodeLocation locationB = new TrackNodeLocation(12, 0, 0).in(net.minecraft.world.level.Level.OVERWORLD);
+        TrackNode nodeA = new TrackNode(locationA, 1, Vec3.ZERO);
+        TrackNode nodeB = new TrackNode(locationB, 2, Vec3.ZERO);
+        TrackEdge edge = new TrackEdge(nodeA, nodeB, null, null);
+        com.simibubi.create.content.trains.entity.TravellingPoint point =
+                new com.simibubi.create.content.trains.entity.TravellingPoint(nodeA, nodeB, edge, 3.0, false);
+        TrackGraph graph = new TrackGraph();
+
+        for (int i = 0; i < 20_000; i++) {
+            point.getPosition(graph);
+        }
+
+        long start = System.nanoTime();
+        Vec3 last = Vec3.ZERO;
+        for (int i = 0; i < iterations; i++) {
+            last = point.getPosition(graph);
+        }
+        long elapsed = System.nanoTime() - start;
+        return String.format(Locale.ROOT,
+                "travelPointPosition: iters=%d ns/op=%.1f x=%.3f cache=%s",
+                iterations, (double) elapsed / iterations, last.x, HotFlags.TRAVEL_POSITION_CACHE);
+    }
+
+    /**
+     * Algorithm prototype for the train collision check: the vanilla loop compares every carriage of
+     * every train against the query point (O(T*C) per query, O(T^2*C) per tick). A conservative grid
+     * over the carriage positions visits only the neighbouring cells.
+     *
+     * <p>Both paths count the points inside the radius so the two candidate sets can be compared.
+     */
+    private static String collisionFilter() {
+        int trains = 200;
+        int perTrain = 4;
+        double spacing = 40.0;
+        double maxDistance = 32.0;
+        int total = trains * perTrain;
+
+        double[] xs = new double[total];
+        double[] ys = new double[total];
+        double[] zs = new double[total];
+        int index = 0;
+        for (int train = 0; train < trains; train++) {
+            for (int carriage = 0; carriage < perTrain; carriage++) {
+                xs[index] = train * spacing + carriage * 3.0;
+                ys[index] = 64.0;
+                zs[index] = 0.0;
+                index++;
+            }
+        }
+
+        double radiusSqr = maxDistance * maxDistance;
+        long naivePairs = 0;
+        long naiveBest = Long.MAX_VALUE;
+        long naiveHits = 0;
+        com.tkisor.fettle.alg.SpatialBuckets grid = new com.tkisor.fettle.alg.SpatialBuckets(maxDistance);
+        for (int p = 0; p < total; p++) {
+            grid.add(xs[p], ys[p], zs[p]);
+        }
+        long indexedBest = Long.MAX_VALUE;
+        long indexedHits = 0;
+        long indexedVisited = 0;
+
+        for (int round = 0; round < 60; round++) {
+            long naiveHitsRound = 0;
+            long start = System.nanoTime();
+            for (int train = 0; train < trains; train++) {
+                double qx = train * spacing;
+                double qy = 64.0;
+                for (int p = 0; p < total; p++) {
+                    if (round == 0) {
+                        naivePairs++;
+                    }
+                    double dx = xs[p] - qx;
+                    double dy = ys[p] - qy;
+                    double dz = zs[p];
+                    if (dx * dx + dy * dy + dz * dz <= radiusSqr) {
+                        naiveHitsRound++;
+                    }
+                }
+            }
+            long naiveNanos = System.nanoTime() - start;
+            if (round >= 10) {
+                naiveBest = Math.min(naiveBest, naiveNanos);
+                naiveHits = naiveHitsRound;
+            }
+
+            long indexedHitsRound = 0;
+            long start2 = System.nanoTime();
+            for (int train = 0; train < trains; train++) {
+                indexedHitsRound += grid.countWithin(train * spacing, 64.0, 0.0, maxDistance);
+            }
+            long indexedNanos = System.nanoTime() - start2;
+            if (round == 0) {
+                indexedVisited = grid.visited();
+            }
+            if (round >= 10) {
+                indexedBest = Math.min(indexedBest, indexedNanos);
+                indexedHits = indexedHitsRound;
+            }
+        }
+
+        return String.format(Locale.ROOT,
+                "collisionFilter: points=%d queries=%d radius=%.0f naive_pairs=%d indexed_visited=%d "
+                        + "hits(naive/indexed)=%d/%d naive_us=%.1f indexed_us=%.1f speedup=%.2fx",
+                total, trains, maxDistance, naivePairs, indexedVisited, naiveHits, indexedHits,
+                naiveBest / 1000.0, indexedBest / 1000.0, (double) naiveBest / Math.max(1, indexedBest));
+    }
+
+    /**
+     * Measures the cost of {@code KineticNetwork#updateStressFor} on a real kinetic network: the exact
+     * operation that sums over every member and re-validates each one with a block-entity lookup.
+     */
+    private static String kineticStress(ServerLevel level, int iterations) {
+        try {
+            com.simibubi.create.content.kinetics.KineticNetwork direct = KineticBenchHelper.biggestNetwork(level);
+            if (direct != null) {
+                return measureKineticStress(direct, iterations);
+            }
+            Class<?> propagator = Class.forName("com.simibubi.create.content.kinetics.TorquePropagator");
+            java.lang.reflect.Field field = propagator.getDeclaredField("networks");
+            field.setAccessible(true);
+            Map<?, ?> byLevel = (Map<?, ?>) field.get(null);
+            Object networks = null;
+            for (Map.Entry<?, ?> entry : byLevel.entrySet()) {
+                if (entry.getKey() == level) {
+                    networks = entry.getValue();
+                    break;
+                }
+            }
+            com.simibubi.create.content.kinetics.KineticNetwork best = null;
+            if (networks != null) {
+                for (Object candidate : ((Map<?, ?>) networks).values()) {
+                    com.simibubi.create.content.kinetics.KineticNetwork network =
+                            (com.simibubi.create.content.kinetics.KineticNetwork) candidate;
+                    if (network.members == null || network.members.isEmpty()) {
+                        continue;
+                    }
+                    if (best == null || network.members.size() > best.members.size()) {
+                        best = network;
+                    }
+                }
+            }
+            if (best == null) {
+                // fall back to any level's biggest network, so a key mismatch cannot hide the data
+                int levels = 0;
+                for (Object perLevel : byLevel.values()) {
+                    levels++;
+                    for (Object candidate : ((Map<?, ?>) perLevel).values()) {
+                        com.simibubi.create.content.kinetics.KineticNetwork network =
+                                (com.simibubi.create.content.kinetics.KineticNetwork) candidate;
+                        if (network.members == null || network.members.isEmpty()) {
+                            continue;
+                        }
+                        if (best == null || network.members.size() > best.members.size()) {
+                            best = network;
+                        }
+                    }
+                }
+                if (best == null) {
+                    return "kineticStress: no populated kinetic network (levels=" + levels + ")";
+                }
+            }
+            if (best == null) {
+                return "kineticStress: no populated kinetic network in this level";
+            }
+            return measureKineticStress(best, iterations);
+        } catch (Throwable t) {
+            return "kineticStress failed: " + t;
+        }
+    }
+
+    private static String measureKineticStress(com.simibubi.create.content.kinetics.KineticNetwork network,
+                                               int iterations) {
+        com.simibubi.create.content.kinetics.base.KineticBlockEntity member =
+                network.members.keySet().iterator().next();
+        float stress = network.members.get(member);
+
+        com.tkisor.fettle.alg.LevelBlockEntityCache.resetCounters();
+        com.tkisor.fettle.alg.KineticCounters.reset();
+        for (int i = 0; i < 200; i++) {
+            network.updateStressFor(member, stress);
+        }
+        com.tkisor.fettle.alg.LevelBlockEntityCache.resetCounters();
+        com.tkisor.fettle.alg.KineticCounters.reset();
+        long start = System.nanoTime();
+        for (int i = 0; i < iterations; i++) {
+            network.updateStressFor(member, stress);
+        }
+        long elapsed = System.nanoTime() - start;
+        return String.format(Locale.ROOT,
+                "kineticStress: members=%d iters=%d us/op=%.3f incremental=%s lookups=%s kinetic=%s",
+                network.members.size(), iterations, elapsed / 1000.0 / iterations,
+                HotFlags.KINETIC_INCREMENTAL_STRESS, com.tkisor.fettle.alg.LevelBlockEntityCache.counters(),
+                com.tkisor.fettle.alg.KineticCounters.report());
+    }
+
+    private static String matchAddress(int iterations) {
+        String[] globs = {"factory-*", "item-?-box", "*", "warehouse-2026-*"};
+        String[] addresses = {"factory-1", "factory-27", "item-a-box", "warehouse-2026-05", "nothing"};
+
+        int sink = 0;
+        for (int i = 0; i < 20_000; i++) {
+            sink += PackageItem.matchAddress(globs[i & 3], addresses[i % 5]) ? 1 : 0;
+        }
+
+        long start = System.nanoTime();
+        int hits = 0;
+        for (int i = 0; i < iterations; i++) {
+            if (PackageItem.matchAddress(globs[i & 3], addresses[i % 5])) {
+                hits++;
+            }
+        }
+        long elapsed = System.nanoTime() - start;
+        return String.format(Locale.ROOT, "matchAddress: iters=%d ns/op=%.1f hits=%d (warmup sink=%d)",
+                iterations, (double) elapsed / iterations, hits, sink);
+    }
+
+    /** Exercises the "node has no connections" path, which allocates a HashMap in vanilla. */
+    private static String trackGraphMiss(int iterations) {
+        TrackGraph graph = new TrackGraph();
+        TrackNode node = new TrackNode(new TrackNodeLocation(Vec3.ZERO), 1, Vec3.ZERO);
+
+        int sink = 0;
+        for (int i = 0; i < 20_000; i++) {
+            sink += graph.getConnectionsFrom(node).size();
+        }
+
+        long start = System.nanoTime();
+        long total = 0;
+        for (int i = 0; i < iterations; i++) {
+            total += graph.getConnectionsFrom(node).size();
+        }
+        long elapsed = System.nanoTime() - start;
+        return String.format(Locale.ROOT, "trackGraphMiss: iters=%d ns/op=%.1f total=%d (warmup sink=%d) index=%s",
+                iterations, (double) elapsed / iterations, total, sink, HotFlags.TRACK_GRAPH);
+    }
+
+    /** Timed recipe lookups over synthetic inputs built from the real recipe set. */
+    private static String getRecipeFor(ServerLevel level, int iterations) {
+        RecipeManager manager = level.getRecipeManager();
+        List<RecipeHolder<CraftingRecipe>> recipes = manager.getAllRecipesFor(RecipeType.CRAFTING);
+
+        List<CraftingInput> inputs = new ArrayList<>();
+        for (RecipeHolder<CraftingRecipe> holder : recipes) {
+            CraftingInput input = inputFor(holder.value());
+            if (input != null) {
+                inputs.add(input);
+            }
+            if (inputs.size() >= 256) {
+                break;
+            }
+        }
+        if (inputs.isEmpty()) {
+            return "getRecipeFor: no usable crafting recipes in this world";
+        }
+
+        int sink = 0;
+        for (int i = 0; i < 2_000; i++) {
+            sink += manager.getRecipeFor(RecipeType.CRAFTING, inputs.get(i % inputs.size()), level).isPresent() ? 1 : 0;
+        }
+
+        long start = System.nanoTime();
+        int hits = 0;
+        for (int i = 0; i < iterations; i++) {
+            if (manager.getRecipeFor(RecipeType.CRAFTING, inputs.get(i % inputs.size()), level).isPresent()) {
+                hits++;
+            }
+        }
+        long elapsed = System.nanoTime() - start;
+        return String.format(Locale.ROOT,
+                "getRecipeFor: inputs=%d iters=%d ns/op=%.1f hits=%d (warmup sink=%d) index=%s",
+                inputs.size(), iterations, (double) elapsed / iterations, hits, sink, HotFlags.RECIPE_INDEX);
+    }
+
+    private static CraftingInput inputFor(CraftingRecipe recipe) {
+        NonNullList<Ingredient> ingredients = recipe.getIngredients();
+        if (ingredients.isEmpty() || ingredients.size() > 9) {
+            return null;
+        }
+        List<ItemStack> stacks = new ArrayList<>(9);
+        for (int i = 0; i < 9; i++) {
+            if (i >= ingredients.size()) {
+                stacks.add(ItemStack.EMPTY);
+                continue;
+            }
+            Ingredient ingredient = ingredients.get(i);
+            if (ingredient == null || ingredient.isEmpty()) {
+                return null;
+            }
+            ItemStack[] items = ingredient.getItems();
+            if (items.length == 0) {
+                return null;
+            }
+            stacks.add(new ItemStack(items[0].getItem()));
+        }
+        return CraftingInput.of(3, 3, stacks);
+    }
+}
