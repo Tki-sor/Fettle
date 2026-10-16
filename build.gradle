@@ -58,8 +58,12 @@ neoForge {
             programArgument '--nogui'
             gameDirectory = file('run/server')
         }
+        // Data generation run. MDG 2.0.107 exposes clientData() in the DSL but its prepare task only
+        // accepts the run types [client, data, gameTestServer, server, junit], which made the IDE fail
+        // with "Trying to prepare unknown run: clientData". This project has no generated resources, so
+        // the plain data run is enough.
         data {
-            clientData()
+            data()
         }
     }
 }
