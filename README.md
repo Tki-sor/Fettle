@@ -11,13 +11,17 @@ runtime. Everything is driven by config; there are no JVM arguments or environme
 
 ## Status
 
+**✅ verified · ⚠️ measured, no benefit / unproven · 🧪 implemented, not verified** — the authoritative
+per-feature ledger is [docs/fettle/20-status-ledger.md](Fettle-1.21.1/docs/fettle/20-status-ledger.md).
+
 | Area | What it does | Measured |
 | --- | --- | --- |
 | Recipe index (vanilla + all mods) | Pre-compiled bitset pre-filter for `RecipeManager#getRecipeFor`; the final decision stays with vanilla `Recipe#matches` | **−85%** per lookup (23.4 µs → 3.5–4.1 µs); parity `checked=1211 mismatches=0` |
 | Kinetic network | Per-tick memo of the block-entity validation lookup, plus O(1) incremental stress bookkeeping with a per-tick reconciliation | **4.5–5×** (lookups 442,200 → 201); **213×** on the update path |
 | Train collision | Candidate filter from a per-tick carriage bounding-box snapshot, with a moved-train guard | **−94%** candidates; differential test vs vanilla: **0 mismatches** |
 | Factory panels | Aggregation every N ticks instead of every tick — **opt-in, default = vanilla** | server scaffolding scene: panel section −72%; naturally active client scene: 0.5210 vs 0.5302 ms → **no benefit, unproven** ([docs 19](Fettle-1.21.1/docs/fettle/19-client-spark-test.md)) |
-| Create misc | `TrackGraph#getConnectionsFrom` allocation, `BeltBlock#hasShaftTowards`, package address regex cache | address cache **~4×** |
+| Create misc ✅ | `TrackGraph#getConnectionsFrom` allocation, package address regex cache | address cache **~4×** (552→136 ns/op) |
+| Belt shaft lookup ⚠️ | `BeltBlock#hasShaftTowards`: `Optional` chain replaced by `instanceof` | **no measurable benefit** on a real belt (9.14/12.09/11.49 vs 10.17/11.15 ns/op) — kept because it is behaviour-equivalent, see [docs 21](Fettle-1.21.1/docs/fettle/21-a8-belt-shaft.md) |
 | BE observation + sleeping pilot | Zero-behaviour-change observation of per-class tick/change/sync counts, plus an opt-in sleeping pilot with config whitelist, heartbeats and auto-blacklist | steady state **19 skips : 1 heartbeat** (95% skipped) |
 
 Design notes, evidence and numbers live in [docs/fettle/](docs/fettle/) — start with

@@ -54,7 +54,49 @@ public final class CreateMicroBenchmarks {
         if ("kineticStress".equals(name)) {
             return kineticStress(level, iterations);
         }
+        if ("beltShaft".equals(name)) {
+            return beltShaft(level, iterations);
+        }
         return "unknown micro benchmark: " + name;
+    }
+
+    /**
+     * A8: {@code BeltBlock#hasShaftTowards} on a real belt block placed by this benchmark. Vanilla
+     * builds an {@code Optional} for the block-entity lookup, the Fettle path is an {@code instanceof}.
+     *
+     * <p>That mixin is an {@code @Overwrite} selected at load time, so this one is A/B'd by flipping
+     * {@code create.beltShaftLookup} in the config and restarting, not with {@code /fettle feature}.
+     */
+    private static String beltShaft(ServerLevel level, int iterations) {
+        net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(8, 100, 8);
+        level.setChunkForced(pos.getX() >> 4, pos.getZ() >> 4, true);
+        level.getChunk(pos);
+        net.minecraft.world.level.block.state.BlockState belt =
+                com.simibubi.create.AllBlocks.BELT.get().defaultBlockState()
+                        .setValue(com.simibubi.create.content.kinetics.belt.BeltBlock.SLOPE,
+                                com.simibubi.create.content.kinetics.belt.BeltSlope.HORIZONTAL)
+                        .setValue(com.simibubi.create.content.kinetics.belt.BeltBlock.PART,
+                                com.simibubi.create.content.kinetics.belt.BeltPart.START)
+                        .setValue(com.simibubi.create.content.kinetics.belt.BeltBlock.CASING, false)
+                        .setValue(net.minecraft.world.level.block.HorizontalDirectionalBlock.FACING,
+                                net.minecraft.core.Direction.EAST);
+        level.setBlock(pos, belt, 3);
+        net.minecraft.world.level.block.state.BlockState state = level.getBlockState(pos);
+        if (!(state.getBlock() instanceof com.simibubi.create.content.kinetics.belt.BeltBlock beltBlock)) {
+            return "beltShaft: belt block was not placed at " + pos.toShortString();
+        }
+        net.minecraft.core.Direction face = net.minecraft.core.Direction.EAST;
+        for (int i = 0; i < 2_000; i++) {
+            beltBlock.hasShaftTowards(level, pos, state, face);
+        }
+        long start = System.nanoTime();
+        boolean result = false;
+        for (int i = 0; i < iterations; i++) {
+            result = beltBlock.hasShaftTowards(level, pos, state, face);
+        }
+        long elapsed = System.nanoTime() - start;
+        return String.format(Locale.ROOT, "beltShaft: %.2f ns/op (%d iterations) blockEntity=%s result=%s",
+                (double) elapsed / iterations, iterations, level.getBlockEntity(pos) != null, result);
     }
 
     /**
