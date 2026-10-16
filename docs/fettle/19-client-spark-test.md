@@ -123,3 +123,47 @@ Tick durations:  2.4/3.1/4.4/8.1;  2.4/3.1/4.7/9.7
 记录一下踩坑：`/fettle bench start` **必须带 tag**（`bench start <tag>`），不带 tag 时指令被参数校验拒绝，
 `bench stop` 只会写出一个 0 tick 的空 CSV —— 第一轮我就这么被骗了一次。
 
+
+## 19.8 让面板真的 tick 之后再测：结果是**负结果**（附原因）
+
+上一节没测到的根因就是场景：**空闲面板没有 keep-alive 根本不 tick**（`panels_tick_calls = 0`）。
+打开诊断项后同一个场景立刻活了：
+
+```
+/fettle feature debugPanelKeepAlive true
+/fettle debug panels 64 2          → placed 4096 factory panels (keep-alive=true)
+/ fettle bench start tick1 ...
+panels_tick_calls = 33,792 /tick    panels_tick_ms = 1.865 ms/tick    tick_ms = 9.111 ms
+```
+
+然后做了正式的两条 **653-tick** 窗口（节流 `=5` vs 原版 `=1`）：
+
+| 分段 | 节流 =5 | 原版 =1 | 差 |
+| --- | --- | --- | --- |
+| `tick_ms`（整 tick） | 9.1123 | 8.6946 | −4.6% |
+| `panels_tick_ms` | 1.8421 | 1.7006 | **−7.7%** |
+| `crafters_tick_ms` | 2.4180 | 2.2470 | −7.1% |
+| `panels_tick_calls` | 34100 | 33542 | −1.6% |
+| `crafters_tick_calls` | 4428 | 4461 | +0.7% |
+
+**结论：客户端这一轮是负结果，不能支持 B8 的 −72%。** 两个理由，都很硬：
+
+1. **面板段落没降反升 7.7%**，而同一份 CSV 里 `crafters_tick_ms`、`tick_ms` **同样**朝"更快"方向偏了 4.6–7.1%。
+   也就是说变快的是**整个窗口**（先跑节流窗、后跑原版窗，JIT/GC/刚放置场景的沉降），
+   面板那 −7.7% 属于**漂移**，不是节流效果。
+2. **`debugPanelKeepAlive=true` 本身就在强行"吊着"面板保持活跃**——这恰好抵消了"空闲面板节流"这条优化赖以成立的前提。
+   所以这个场景从设计上就不适合验证它。B8 的 −72% 来自**自然活跃**的面板网络场景，两者前提不同，不能混用。
+
+要得到客户端侧的正结果，正确做法是：**让面板处在真实网络里自然 tick**（例如用面板+打包机+请求器的实际产线），
+而不是靠 keep-alive 强行唤醒——后者是诊断手段，不是测量手段。
+
+### 同轮的线程级曲线（面板确实在 tick 的场景）
+
+| 状态 | 曲线 |
+| --- | --- |
+| 节流 =5 | https://spark.lucko.me/8JZZeaAitu |
+| 原版 =1 | https://spark.lucko.me/B15LtlUFlR |
+
+（两条都在游戏内上传成功。之前上传失败的真正原因是 spark 的 `spark-usercontent.lucko.me/post` 返回 **400**，与 Fettle 无关；
+失败时会回退成 `run/config/spark/profile-*.sparkprofile`，需要的话可以手动 POST 到 `https://bytebin.lucko.me/post` 拿 key。）
+
