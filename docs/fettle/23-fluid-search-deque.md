@@ -192,3 +192,31 @@ FluidManipulationBehaviour，用"滑轮正下方第一格流体"作为 frontier 
 | 整机 MSPT（真实排水装置场景） | ⚠️ 仍未达成：装置泵不转、罐体不进液 |
 | 剩余 frontier 写回的跨 tick 语义一致性 | ⚠️ 尚未单独验证（建议下一步加：两态比较 leftover 的 size 与内容哈希） |
 | 默认值 | 仍保持 false，等最后一条一致性检查过了再翻 |
+
+## 23.9 leftover 一致性检查通过 + 默认值翻为 true（本项收尾）
+
+在同一个 bench 里加了"剩余 frontier 的顺序敏感哈希"（对每格 pos.asLong() 与 distance 做 FNV-1a），
+并对 60 次调用做整体哈希 hashAll。三种状态各跑两轮（并额外做了一次 ON→OFF→ON 的顺序对照）：
+
+| 状态 | avg us/call（稳态） | accepted | leftover | hash | hashAll |
+| --- | --- | --- | --- | --- | --- |
+| deque ON | 363.8 | 439 | 442 | 0x529ca5cf9dcfbc61 | 0x14f94add0065d431 |
+| deque ON | 359.8 | 439 | 442 | 0x529ca5cf9dcfbc61 | 0x14f94add0065d431 |
+| vanilla OFF | 540.0 | 439 | 442 | 0x529ca5cf9dcfbc61 | 0x14f94add0065d431 |
+| vanilla OFF | 572.4 | 439 | 442 | 0x529ca5cf9dcfbc61 | 0x14f94add0065d431 |
+
+**四个数据点（另加一次 ON 顺序对照，共六次）里 accepted、leftover、hash、hashAll 完全相同**：
+不仅遍历结果一致，**跨 tick 继续使用的剩余 frontier 在顺序与内容上也逐格一致**——
+这正是原分析里标成 High 风险的那一点（剩余元素丢失会静默停止排水），现在被直接证否。
+
+性能同样稳定：ON 稳态 **359.8 / 363.8 us**，OFF **540.0 / 572.4 us** → 该搜索调用 **约 1.5x**。
+
+### 结论与默认值
+
+- 正确性：**方法级逐格一致**（含 leftover 顺序敏感哈希）；
+- 性能：真实 5000 格水体上 **~1.5x**（纯队列 519x，其余时间是世界流体查询）；
+- APPLY：已验证；
+- 因此 `create.fluidSearchDeque` 默认值**翻为 true**。
+
+仍未达成的只有一条：**整机 MSPT**（需要一套真正在排水的装置；当前脚本装置泵不转，属于场景搭建问题，
+不影响上述方法级结论）。以后要补就按 23.7 的三步做。

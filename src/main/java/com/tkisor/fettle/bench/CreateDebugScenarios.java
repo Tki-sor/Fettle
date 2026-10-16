@@ -81,6 +81,9 @@ public final class CreateDebugScenarios {
         long first = 0L;
         long total = 0L;
         int lastAccepted = 0;
+        int leftover = 0;
+        long hashOfLast = 0L;
+        long hashAll = 0xCBF29CE484222325L;
         for (int i = 0; i < runs; i++) {
             java.util.List<com.simibubi.create.content.fluids.transfer.FluidManipulationBehaviour.BlockPosEntry> frontier =
                     new java.util.ArrayList<>();
@@ -95,6 +98,19 @@ public final class CreateDebugScenarios {
                 return "fluidSearchBench: call failed: " + cause;
             }
             long elapsed = System.nanoTime() - start;
+            // Parity check: whatever is left in the frontier must be identical in order and content,
+            // because the caller uses its emptiness as "search finished" and resumes from it next tick.
+            long hash = 0xCBF29CE484222325L;
+            for (var entry : frontier) {
+                hash ^= entry.pos().asLong();
+                hash *= 0x100000001B3L;
+                hash ^= entry.distance();
+                hash *= 0x100000001B3L;
+            }
+            leftover = frontier.size();
+            hashOfLast = hash;
+            hashAll ^= hash;
+            hashAll *= 0x100000001B3L;
             if (i == 0) {
                 first = elapsed;
             } else {
@@ -104,9 +120,9 @@ public final class CreateDebugScenarios {
         }
         double averageUs = total / (double) Math.max(1, runs - 1) / 1000.0;
         return String.format(Locale.ROOT,
-                "fluidSearchBench: %d calls, avg=%.1f us/call, first=%.1f us, accepted=%d, seed=%s, rootWasNull=%s, dequeFlag=%s",
-                runs, averageUs, first / 1000.0, lastAccepted, seed.toShortString(), rootWasNull,
-                com.tkisor.fettle.config.HotFlags.FLUID_SEARCH_DEQUE);
+                "fluidSearchBench: %d calls, avg=%.1f us/call, first=%.1f us, accepted=%d, leftover=%d, hash=0x%016x, hashAll=0x%016x, seed=%s, rootWasNull=%s, dequeFlag=%s",
+                runs, averageUs, first / 1000.0, lastAccepted, leftover, hashOfLast, hashAll,
+                seed.toShortString(), rootWasNull, com.tkisor.fettle.config.HotFlags.FLUID_SEARCH_DEQUE);
     }
 
     /** Reports what is actually at a position: block, block entity, kinetic speed and tank contents. */

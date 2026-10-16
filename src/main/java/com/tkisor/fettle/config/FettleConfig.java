@@ -145,8 +145,11 @@ public final class FettleConfig {
                 .comment("FluidManipulationBehaviour#search: dequeue the fluid BFS with an ArrayDeque instead of",
                         "ArrayList.remove(0). Both are FIFO, so order, result and leftover frontier are identical;",
                         "only the O(n) arraycopy per pop disappears (measured 519x on the dequeue itself).",
-                        "See docs/fettle/23-fluid-search-deque.md.")
-                .define("fluidSearchDeque", false);
+                        "Verified on a real 5000-block water body by /fettle debug fluidsearch: accepted, leftover",
+                        "size and an order-sensitive hash of the leftover frontier are identical to vanilla over",
+                        "60 calls, while the call is ~1.5x faster (360 vs 540-572 us). Whole-server MSPT on a",
+                        "genuinely draining rig is still unmeasured. See docs/fettle/23-fluid-search-deque.md.")
+                .define("fluidSearchDeque", true);
         CREATE_MOUNTED_STORAGE_FAST_PATH = b
                 .comment("MountedStorageManager#tick: skip the two per-sync HashMap allocations when a",
                         "contraption has no synced item/fluid storage. The vanilla path is otherwise a no-op,",
