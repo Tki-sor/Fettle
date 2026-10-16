@@ -19,6 +19,10 @@ public interface FluidManipulationAccessor {
     @Accessor("rootPos")
     BlockPos fettle$rootPos();
 
+    /** Fixture setup for the search benchmark: the real path fills this in during initialise(). */
+    @Accessor("rootPos")
+    void fettle$setRootPos(BlockPos pos);
+
     @Invoker("maxBlocks")
     int fettle$maxBlocks();
 

@@ -141,6 +141,17 @@ public final class FettleCommands {
                                                                 StringArgumentType.getString(ctx, "class"),
                                                                 IntegerArgumentType.getInteger(ctx, "observe"),
                                                                 IntegerArgumentType.getInteger(ctx, "maxSkip"))))))))
+                        .then(Commands.literal("fluidsearch")
+                                .then(Commands.argument("x", IntegerArgumentType.integer())
+                                        .then(Commands.argument("y", IntegerArgumentType.integer())
+                                                .then(Commands.argument("z", IntegerArgumentType.integer())
+                                                        .then(Commands.argument("iterations", IntegerArgumentType.integer(1, 500))
+                                                                .executes(ctx -> reply(ctx.getSource(), fluidSearchBench(
+                                                                        ctx.getSource().getLevel(),
+                                                                        new BlockPos(IntegerArgumentType.getInteger(ctx, "x"),
+                                                                                IntegerArgumentType.getInteger(ctx, "y"),
+                                                                                IntegerArgumentType.getInteger(ctx, "z")),
+                                                                        IntegerArgumentType.getInteger(ctx, "iterations")))))))))
                         .then(Commands.literal("fluidcheck")
                                 .then(Commands.argument("x", IntegerArgumentType.integer())
                                         .then(Commands.argument("y", IntegerArgumentType.integer())
@@ -338,6 +349,20 @@ public final class FettleCommands {
         } catch (Throwable t) {
             Throwable cause = t.getCause() != null ? t.getCause() : t;
             return "debug fluidscene failed: " + cause;
+        }
+    }
+
+    private static String fluidSearchBench(net.minecraft.server.level.ServerLevel level, BlockPos pos, int iterations) {
+        try {
+            Class<?> scenarios = Class.forName("com.tkisor.fettle.bench.CreateDebugScenarios");
+            return (String) scenarios.getMethod("fluidSearchBench",
+                            net.minecraft.server.level.ServerLevel.class, BlockPos.class, int.class)
+                    .invoke(null, level, pos, iterations);
+        } catch (ClassNotFoundException e) {
+            return "debug fluidsearch needs Create (not installed)";
+        } catch (Throwable t) {
+            Throwable cause = t.getCause() != null ? t.getCause() : t;
+            return "debug fluidsearch failed: " + cause;
         }
     }
 

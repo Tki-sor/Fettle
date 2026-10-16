@@ -17,7 +17,7 @@
 | **`BeltBlock#hasShaftTowards`（A8）** | ⚠️ **无收益（本轮实测）** | 开 | 原版 **9.14 / 12.09 / 11.49** ns/op vs Fettle **10.17 / 11.15** ns/op（200–400 万次/轮）→ 差值小于轮间抖动；`Optional` 被逃逸分析标量化。见 [21](21-a8-belt-shaft.md) |
 | ① 车载存储同步快速路径（`MountedStorageManager#tick`） | ⚠️ **稳态无收益** | 开 | 冷态 8.50 ns/op & 51.3 B/op → C2 后 1.17 ns/op & **0.0 B/op**；逃逸分析把两个 HashMap 消掉了。见 [22](22-allocation-optimisations.md) |
 | ② `SmartBlockEntity#tick` 迭代器/lambda | ⚠️ **前提不成立** | — | 实测 **0.0 B/op**，运行时没有可见分配，未改代码。见 [22](22-allocation-optimisations.md) |
-| 流体 BFS 出队（F1） | 🧪 **未证实**（数据结构收益 ✅ 519×，APPLY ✅，端到端 ⚠️ 场景未真正排水） | **关** | 自建 /fettle debug fluidscene 场景 + fluidcheck 诊断：滑轮 speed=-16 但泵 speed=0、罐体空、水位不降 → A/B（1202 tick）差 4.6% 不能归因。见 [23](23-fluid-search-deque.md) |
+| 流体 BFS 出队（F1） | ✅ **方法级已验证**（真水体 5000 格：386.8 vs 539.2/2040.2 us/call，accepted 均 439）；整机 MSPT ⚠️ 未达成 | **关** | 见 [23](23-fluid-search-deque.md)：纯队列 519x；APPLY ✅；/fettle debug fluidsearch 方法级 A/B；默认关因 leftover 跨 tick 语义尚未单独验证 |
 | 面板聚合节流 | ⚠️ **未证实** | **关（1）** | 脚手架场景面板段 −72%；自然激活客户端场景 0.5210 vs 0.5302 ms **无差异**。见 [19](19-client-spark-test.md) |
 | 沉睡试点：观察层 | ✅ 已验证 | 关（`observe.enabled`） | 逐类 tick/setChanged/sync 计数 + `fettle-observe.csv` 长期采集 |
 | 沉睡试点：白名单沉睡 + 心跳 | ✅ 已验证 | 关（`beSleeping.enabled`，白名单空） | 稳态 **19:1**（95% 跳过），实测 19.08 / 19.10 |

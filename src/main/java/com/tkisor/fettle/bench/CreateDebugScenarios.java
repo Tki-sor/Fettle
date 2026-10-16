@@ -24,6 +24,91 @@ public final class CreateDebugScenarios {
     private CreateDebugScenarios() {
     }
 
+    /**
+     * Drives the real FluidManipulationBehaviour#search on a real fluid body, so the F1 change can be
+     * A/B tested without depending on a rig that actually drains. The frontier is seeded with the first
+     * fluid block below the block entity (a hose pulley), the visited set is fresh per call, so every
+     * call does exactly the same work and only the queue implementation differs.
+     */
+    public static String fluidSearchBench(ServerLevel level, BlockPos pos, int iterations) {
+        var be = level.getBlockEntity(pos);
+        if (!(be instanceof com.simibubi.create.foundation.blockEntity.SmartBlockEntity smart)) {
+            return "fluidSearchBench: no SmartBlockEntity at " + pos.toShortString();
+        }
+        java.util.List<com.simibubi.create.content.fluids.transfer.FluidManipulationBehaviour> found =
+                new java.util.ArrayList<>();
+        smart.forEachBehaviour(behaviour -> {
+            if (behaviour instanceof com.simibubi.create.content.fluids.transfer.FluidManipulationBehaviour fluid) {
+                found.add(fluid);
+            }
+        });
+        if (found.isEmpty()) {
+            return "fluidSearchBench: no FluidManipulationBehaviour on " + be.getClass().getSimpleName();
+        }
+        BlockPos seed = null;
+        for (int down = 1; down <= 8; down++) {
+            BlockPos candidate = pos.below(down);
+            if (!level.getFluidState(candidate).isEmpty()) {
+                seed = candidate;
+                break;
+            }
+        }
+        if (seed == null) {
+            return "fluidSearchBench: no fluid within 8 blocks below " + pos.toShortString();
+        }
+        java.lang.reflect.Method search;
+        try {
+            search = com.simibubi.create.content.fluids.transfer.FluidManipulationBehaviour.class
+                    .getDeclaredMethod("search", net.minecraft.world.level.material.Fluid.class, java.util.List.class,
+                            java.util.Set.class, java.util.function.BiConsumer.class, boolean.class);
+            search.setAccessible(true);
+        } catch (Throwable t) {
+            return "fluidSearchBench: cannot resolve search: " + t;
+        }
+        boolean rootWasNull = false;
+        try {
+            var access = (com.tkisor.fettle.mixin.create.fluids.FluidManipulationAccessor) found.get(0);
+            if (access.fettle$rootPos() == null) {
+                access.fettle$setRootPos(pos);
+                rootWasNull = true;
+            }
+        } catch (Throwable t) {
+            return "fluidSearchBench: cannot set rootPos: " + t;
+        }
+        int[] accepted = new int[1];
+        java.util.function.BiConsumer<BlockPos, Integer> add = (p, distance) -> accepted[0]++;
+        int runs = Math.max(1, Math.min(iterations, 500));
+        long first = 0L;
+        long total = 0L;
+        int lastAccepted = 0;
+        for (int i = 0; i < runs; i++) {
+            java.util.List<com.simibubi.create.content.fluids.transfer.FluidManipulationBehaviour.BlockPosEntry> frontier =
+                    new java.util.ArrayList<>();
+            frontier.add(new com.simibubi.create.content.fluids.transfer.FluidManipulationBehaviour.BlockPosEntry(seed, 0));
+            java.util.Set<BlockPos> visited = new java.util.HashSet<>();
+            accepted[0] = 0;
+            long start = System.nanoTime();
+            try {
+                search.invoke(found.get(0), null, frontier, visited, add, true);
+            } catch (Throwable t) {
+                Throwable cause = t.getCause() != null ? t.getCause() : t;
+                return "fluidSearchBench: call failed: " + cause;
+            }
+            long elapsed = System.nanoTime() - start;
+            if (i == 0) {
+                first = elapsed;
+            } else {
+                total += elapsed;
+            }
+            lastAccepted = accepted[0];
+        }
+        double averageUs = total / (double) Math.max(1, runs - 1) / 1000.0;
+        return String.format(Locale.ROOT,
+                "fluidSearchBench: %d calls, avg=%.1f us/call, first=%.1f us, accepted=%d, seed=%s, rootWasNull=%s, dequeFlag=%s",
+                runs, averageUs, first / 1000.0, lastAccepted, seed.toShortString(), rootWasNull,
+                com.tkisor.fettle.config.HotFlags.FLUID_SEARCH_DEQUE);
+    }
+
     /** Reports what is actually at a position: block, block entity, kinetic speed and tank contents. */
     public static String fluidCheck(ServerLevel level, BlockPos pos) {
         StringBuilder sb = new StringBuilder();
