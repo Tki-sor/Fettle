@@ -58,6 +58,36 @@ public final class CreateDebugScenarios {
         return String.format(Locale.ROOT, "placed %d shafts at %s", placed, origin.toShortString());
     }
 
+    /**
+     * Places a grid of packagers with a factory gauge attached to each, so the panels are part of a
+     * real logistics setup. A scripted gauge whose {@code activePanels()} is zero erodes itself away in
+     * {@code FactoryPanelBlockEntity#lazyTick} - linking each gauge to a packager keeps it alive and
+     * ticking through the normal code path, with no debug flag involved.
+     */
+    public static String placePanelPackagers(ServerLevel level, BlockPos origin, int side, int spacing) {
+        BlockState packager = AllBlocks.PACKAGER.get().defaultBlockState();
+        BlockState panel = AllBlocks.FACTORY_GAUGE.get()
+                .defaultBlockState()
+                .setValue(FactoryPanelBlock.FACE, AttachFace.WALL)
+                .setValue(FactoryPanelBlock.FACING, Direction.SOUTH)
+                .setValue(FactoryPanelBlock.WATERLOGGED, false);
+
+        int placed = 0;
+        for (int i = 0; i < side * side; i++) {
+            int x = origin.getX() + (i % side) * spacing;
+            int z = origin.getZ() + (i / side) * spacing;
+            BlockPos packagerPos = new BlockPos(x, origin.getY(), z);
+            level.setChunkForced(packagerPos.getX() >> 4, packagerPos.getZ() >> 4, true);
+            level.getChunk(packagerPos);
+            level.setBlock(packagerPos, packager, 3);
+            if (level.setBlock(packagerPos.south(), panel, 3)) {
+                placed++;
+            }
+        }
+        return String.format(Locale.ROOT, "placed %d packagers with factory gauges at %s",
+                placed, origin.toShortString());
+    }
+
     public static String placePanels(ServerLevel level, BlockPos origin, int side, int spacing) {
         BlockState support = Blocks.STONE.defaultBlockState();
         BlockState panel = AllBlocks.FACTORY_GAUGE.get()

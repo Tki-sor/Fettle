@@ -167,3 +167,40 @@ panels_tick_calls = 33,792 /tick    panels_tick_ms = 1.865 ms/tick    tick_ms = 
 （两条都在游戏内上传成功。之前上传失败的真正原因是 spark 的 `spark-usercontent.lucko.me/post` 返回 **400**，与 Fettle 无关；
 失败时会回退成 `run/config/spark/profile-*.sparkprofile`，需要的话可以手动 POST 到 `https://bytebin.lucko.me/post` 拿 key。）
 
+
+## 19.9 尝试"真实产线"场景（packager + 面板）：**脚本场景做不出自然 tick 的面板**
+
+思路：把 `/fettle debug panels` 的石头底座换成 **packager**（`create:packager`），每个 packager 贴一块 `create:factory_gauge`，
+让面板通过真实物流关系自然激活——新增调试指令 `/fettle debug panelpack <side> <spacing>`（本轮一并入库）。
+
+实测（**keep-alive = false**）：
+
+```
+/fettle feature debugPanelKeepAlive false
+/fettle debug panelpack 40 2      → placed 1600 packagers with factory gauges at 5, -60, 5
+/ fettle bench start nat ...      → panels_tick_calls = 0.0000   crafters_tick_calls = 4438.6
+```
+
+面板**依旧 0 次 tick**，而同一窗口 crafters 正常计数 → 探针没问题，是**面板又消失了**。
+原因在代码里写得很清楚（`FactoryPanelDebugMixin` 的注释）：
+
+> `FactoryPanelBlockEntity#lazyTick` deletes a panel block whose `activePanels()` is zero
+
+也就是说：脚本 `/setblock` 出来的 gauge **没有任何连接**（`activePanels() == 0`），Create 自己会在几秒内把它删掉；
+**把底座换成 packager 并不会自动建立连接**——真实玩法里连接要么是玩家在面板 GUI 里手动连线，要么来自整套 stock 网络。
+
+### 因此的结论（重要）
+
+1. **用脚本场景无法得到"自然 tick 的面板"**，除非：① 在 GUI 里真的连线（人工，无法批量），或 ② 直接往
+   `FactoryPanelBlockEntity` 的 `Connections`/`targetedByLinks` NBT 里注入连接（需要逆向其存档结构），或 ③ **在一个本来就有真实面板网络的存档里测**。
+2. 打开 `debugPanelKeepAlive` 强行吊活面板后可以测（见 19.8），但那个场景**恰恰抹掉了"空闲面板节流"赖以成立的前提**，
+   所以那里测出来的"无差别"不能用来否定优化，也不能用来支持优化——**两边都不能算数**。
+3. 我们目前唯一有说服力的面板节流证据，仍是服务端 B8 那次**自然活跃**面板网络下的分段测量（面板段落 1.16–1.30 → 0.35–0.37 ms）。
+   客户端要复现它，必须先有一个**真实连线**的面板网络。
+
+### 下一步（选一个）
+
+- **A（推荐，最真实）**：你给一个已经有工厂面板产线的存档/世界（ATM10 里的基地就行），我直接在客户端测；
+- **B（我可以试）**：逆向 `FactoryPanelBlockEntity` 的 NBT，写一个"批量连线"的调试指令，在客户端脚本化造出自然活跃的面板网络；
+- **C**：接受"面板节流只在服务端分段测量里有数据"这一现状，把它在文档里标注为**服务端验证、客户端未复现**。
+
