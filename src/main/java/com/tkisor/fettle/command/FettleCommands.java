@@ -141,6 +141,12 @@ public final class FettleCommands {
                                                                 StringArgumentType.getString(ctx, "class"),
                                                                 IntegerArgumentType.getInteger(ctx, "observe"),
                                                                 IntegerArgumentType.getInteger(ctx, "maxSkip"))))))))
+                        .then(Commands.literal("fluidscene")
+                                .then(Commands.argument("radius", IntegerArgumentType.integer(2, 24))
+                                        .executes(ctx -> reply(ctx.getSource(), buildFluidScene(
+                                                ctx.getSource().getLevel(),
+                                                BlockPos.containing(ctx.getSource().getPosition()),
+                                                IntegerArgumentType.getInteger(ctx, "radius"))))))
                         .then(Commands.literal("tp")
                                 .then(Commands.argument("x", IntegerArgumentType.integer())
                                         .then(Commands.argument("y", IntegerArgumentType.integer())
@@ -310,6 +316,20 @@ public final class FettleCommands {
         }
         player.teleportTo(source.getLevel(), x + 0.5, y, z + 0.5, player.getYRot(), player.getXRot());
         return "teleported to " + x + " " + y + " " + z;
+    }
+
+    private static String buildFluidScene(net.minecraft.server.level.ServerLevel level, BlockPos origin, int radius) {
+        try {
+            Class<?> scenarios = Class.forName("com.tkisor.fettle.bench.CreateDebugScenarios");
+            return (String) scenarios.getMethod("buildFluidScene",
+                            net.minecraft.server.level.ServerLevel.class, BlockPos.class, int.class)
+                    .invoke(null, level, origin, radius);
+        } catch (ClassNotFoundException e) {
+            return "debug fluidscene needs Create (not installed)";
+        } catch (Throwable t) {
+            Throwable cause = t.getCause() != null ? t.getCause() : t;
+            return "debug fluidscene failed: " + cause;
+        }
     }
 
     private static String wirePanelsAlive(net.minecraft.server.level.ServerLevel level, BlockPos origin,

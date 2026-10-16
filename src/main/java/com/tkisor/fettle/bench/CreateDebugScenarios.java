@@ -142,6 +142,53 @@ public final class CreateDebugScenarios {
         return String.format(Locale.ROOT, "placed and wired %d panels at %s", wired, origin.toShortString());
     }
 
+    /**
+     * Builds a working fluid scene for F1: stone floor, a water body, a hose pulley just above the
+     * surface, a pipe + mechanical pump + tank above it and creative motors for the kinetic parts.
+     * Everything is placed through Level#setBlock, so it does not depend on vanilla placement rules
+     * (a scripted hose pulley is rejected by them).
+     */
+    public static String buildFluidScene(ServerLevel level, BlockPos origin, int radius) {
+        int r = Math.max(2, Math.min(radius, 24));
+        int baseY = origin.getY();
+        BlockState stone = Blocks.STONE.defaultBlockState();
+        BlockState water = Blocks.WATER.defaultBlockState();
+        int floor = 0;
+        int filled = 0;
+        for (int x = -r; x <= r; x++) {
+            for (int z = -r; z <= r; z++) {
+                BlockPos floorPos = origin.offset(x, 0, z);
+                level.setChunkForced(floorPos.getX() >> 4, floorPos.getZ() >> 4, true);
+                level.getChunk(floorPos);
+                if (level.setBlock(floorPos, stone, 3)) {
+                    floor++;
+                }
+                for (int y = 1; y <= 8; y++) {
+                    if (level.setBlock(origin.offset(x, y, z), water, 3)) {
+                        filled++;
+                    }
+                }
+            }
+        }
+        BlockPos pulleyPos = origin.above(9);
+        boolean pulley = level.setBlock(pulleyPos, com.simibubi.create.AllBlocks.HOSE_PULLEY.get()
+                .defaultBlockState()
+                .setValue(net.minecraft.world.level.block.HorizontalDirectionalBlock.FACING, Direction.NORTH), 3);
+        BlockPos pipePos = origin.above(10);
+        boolean pipe = level.setBlock(pipePos, com.simibubi.create.AllBlocks.FLUID_PIPE.get().defaultBlockState(), 3);
+        BlockPos pumpPos = origin.above(11);
+        boolean pump = level.setBlock(pumpPos, com.simibubi.create.AllBlocks.MECHANICAL_PUMP.get()
+                .defaultBlockState()
+                .setValue(net.minecraft.world.level.block.DirectionalBlock.FACING, Direction.UP), 3);
+        boolean motor = level.setBlock(origin.above(11).east(),
+                com.simibubi.create.AllBlocks.CREATIVE_MOTOR.get().defaultBlockState(), 3);
+        boolean tank = level.setBlock(origin.above(12), com.simibubi.create.AllBlocks.FLUID_TANK.get().defaultBlockState(), 3);
+        Object pulleyBe = level.getBlockEntity(pulleyPos);
+        return String.format(Locale.ROOT,
+                "fluidScene r=%d floor=%d water=%d pulley=%s(be=%s) pipe=%s pump=%s motor=%s tank=%s at %s",
+                r, floor, filled, pulley, pulleyBe == null ? "none" : pulleyBe.getClass().getSimpleName(),
+                pipe, pump, motor, tank, pulleyPos.toShortString());
+    }
     public static String placePanels(ServerLevel level, BlockPos origin, int side, int spacing) {
         BlockState support = Blocks.STONE.defaultBlockState();
         BlockState panel = AllBlocks.FACTORY_GAUGE.get()

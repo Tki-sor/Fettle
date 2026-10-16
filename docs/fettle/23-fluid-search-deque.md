@@ -79,3 +79,44 @@ fettle micro fluidSearchQueue 50000
 1. 用世界里的真实软管滑轮（或先手动放一个可用的滑轮 + 管道 + 泵）建立排水场景；
 2. 用 /fettle bench 做 deque on/off 的 tick_ms 对比，并确认**排水量/水位一致**（行为门禁）；
 3. 两项都过再把默认值翻成 true，并把这项写进 tools/fettle_gate.py 的流体断言里。
+
+## 23.6 我自己搭的场景：能搭起来、A/B 也跑了，但**结果是无差异**
+
+### 场景构建（新增 /fettle debug fluidscene <radius>，已入库）
+
+原版放置规则拒绝脚本化的软管滑轮，所以我在 mod 里写了个场景构建器，直接用 Level#setBlock 绕过放置校验：
+石地板 + 水体 + 水面正上方的软管滑轮 + 上方管道 + 机械泵 + 创造马达 + 流体储罐，并强制加载区块。
+
+实测回执：
+```
+[Fettle] fluidScene r=12 floor=625 water=5000 pulley=true(be=HosePulleyBlockEntity) pipe=true pump=true motor=true tank=true at 0, 29, 0
+```
+→ 软管滑轮这次**放上去了**，而且方块实体是 HosePulleyBlockEntity（此前 setblock 报 Could not set the block 是因为目标区块未加载）。
+
+### on/off 的整 tick A/B（各 502 tick，服务器端 bench）
+
+| 状态 | tick_ms mean | p95 | max |
+| --- | --- | --- | --- |
+| fluidSearchDeque = true（我们的 mixin） | 2.654 | 3.849 | 6.279 |
+| fluidSearchDeque = false（原版 remove(0)） | 2.624 | 3.779 | 8.699 |
+| 差 | **+1.1%（噪声内）** | | |
+
+**结论：这个场景测不出差异。** 最可能的原因是**这套脚本装置并没有真的开始排水**——
+软管滑轮要真正抽水需要成形的管道/泵/转速连接，而脚本摆放的泵与马达未必接到泵的轴向，
+滑轮内部罐体可能一直是空的；搜索没被高频调用，两态自然一样。
+
+所以 F1 目前的完整状态是：
+
+| 项 | 状态 |
+| --- | --- |
+| 数据结构收益 | ✅ 实测 519×（n=50000） |
+| mixin APPLY | ✅ 已验证（MixinApplyError=0，Mixing 日志两条） |
+| 场景构建 | ✅ 可复现（/fettle debug fluidscene） |
+| 端到端 tick 收益 | ⚠️ **测到的是无差异**，且**尚不能判定**是优化无效还是场景未真正排水 |
+| 默认值 | 保持 false（关） |
+
+### 下一步（唯一需要补的一步）
+
+1. 先证明场景真的在工作：排水时 `/data get block <pulley>` 应能看到罐体内液体，或水位随时间下降；
+2. 若没排：修正泵/马达的轴向与管道连接（或直接手动在世界里搭一套可用的），再重跑本节的 A/B；
+3. 只有拿到"确实在排水 + 两态有差异"的数据，才把默认值翻 true 并把流体断言写进门禁。
