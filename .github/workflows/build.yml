@@ -1,0 +1,75 @@
+name: build
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (JDK 21)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Download Create 6.0.10 (compile-time only)
+        run: |
+          set -euo pipefail
+          mkdir -p libs/jij
+          curl -sSL -o libs/create-1.21.1-6.0.10.jar \
+            "https://cdn.modrinth.com/data/LNytGWDc/versions/UjX6dr61/create-1.21.1-6.0.10.jar"
+          # Create bundles Flywheel, Ponder and Registrate as jar-in-jar; their classes appear in
+          # Create's class hierarchy, so they are needed on the compile classpath too.
+          unzip -j libs/create-1.21.1-6.0.10.jar 'META-INF/jarjar/*.jar' -d libs/jij
+          ls -1 libs libs/jij
+
+      - name: Build
+        run: ./gradlew build --no-daemon --console=plain
+
+      - name: Upload the mod jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: fettle-jar
+          path: build/libs/*.jar
+          if-no-files-found: error
+
+  gate:
+    # Boots a dev server and asserts the invariants of every optimization. Slower and needs a
+    # NeoForge download, so it runs on demand rather than on every push.
+    name: behaviour gate
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Download Create 6.0.10
+        run: |
+          set -euo pipefail
+          mkdir -p libs/jij run/server/mods
+          curl -sSL -o libs/create-1.21.1-6.0.10.jar \
+            "https://cdn.modrinth.com/data/LNytGWDc/versions/UjX6dr61/create-1.21.1-6.0.10.jar"
+          unzip -j libs/create-1.21.1-6.0.10.jar 'META-INF/jarjar/*.jar' -d libs/jij
+          cp libs/create-1.21.1-6.0.10.jar run/server/mods/
+
+      - name: Run the behaviour gate
+        env:
+          FETTLE_GATE_HEADLESS: '1'
+        run: python3 tools/fettle_gate.py

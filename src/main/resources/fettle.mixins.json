@@ -11,6 +11,8 @@
     "observe.BlockEntityChangedMixin",
     "observe.BlockEntitySleepStateMixin",
     "observe.BlockEntityTickerMixin",
+    "observe.LevelBlockUpdateMixin",
+    "observe.BlockCapabilityMixin",
     "recipe.RecipeManagerMixin"
   ],
   "client": [],

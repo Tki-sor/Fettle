@@ -1,5 +1,7 @@
 # Fettle
 
+[![build](https://github.com/Tki-sor/Fettle/actions/workflows/build.yml/badge.svg)](https://github.com/Tki-sor/Fettle/actions/workflows/build.yml)
+
 Cross-mod performance work for Minecraft **1.21.1 / NeoForge**, focused on Create 6.0.10.
 
 Fettle is a standalone **Mixin mod**: it never edits the source of the mods it optimizes, it injects at
@@ -89,9 +91,11 @@ is a small RCON client.
 
 ## Sleeping pilot scope
 
-Default off, empty whitelist. Implemented wake conditions: `setChanged`, the heartbeat, and
-`/fettle idle wake`. Additional wake conditions (block/neighbour updates, redstone, chunk reload,
-player proximity, interaction, capability queries) are **not implemented yet** — see
+Default off, empty whitelist. Implemented wake conditions: `setChanged`, the heartbeat,
+`/fettle idle wake`, **block/neighbour updates** and **capability queries** (see
+[docs/fettle/18-wake-conditions.md](docs/fettle/18-wake-conditions.md)).
+
+Still missing: chunk reload, player proximity and interaction (right-click). See
 [docs/fettle/09-be-sleeping-boundary.md](docs/fettle/09-be-sleeping-boundary.md). Do not enable it in a
 world you care about.
 

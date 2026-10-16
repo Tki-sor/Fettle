@@ -7,6 +7,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import java.util.HashMap;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
@@ -33,6 +37,16 @@ public final class BeSleepController {
     private static final Map<String, long[]> CLASS_STATS = new ConcurrentHashMap<>();
     private static final Set<String> BLACKLIST = ConcurrentHashMap.newKeySet();
     private static final AtomicLong blacklistEvents = new AtomicLong();
+
+    /**
+     * Position index of the instances that are currently sleeping, so that a block change or a
+     * capability query only costs a hash lookup (and nothing at all while the map is empty).
+     */
+    private static final Map<Level, Map<Long, BlockEntity>> SLEEPING = new ConcurrentHashMap<>();
+
+    private static final AtomicLong wakesByChange = new AtomicLong();
+    private static final AtomicLong wakesByBlockUpdate = new AtomicLong();
+    private static final AtomicLong wakesByCapability = new AtomicLong();
 
     private static final Map<Class<?>, Boolean> TARGET_CACHE = new ConcurrentHashMap<>();
     private static final Map<String, Set<String>> MOD_CLASSES = new ConcurrentHashMap<>();
@@ -66,12 +80,88 @@ public final class BeSleepController {
         suspended = false;
         disabledByFailure = false;
         CLASS_STATS.clear();
+        wakeAll();
     }
 
     /** {@code /fettle idle wake}: stop skipping and wake every instance. */
     public static void suspend() {
         suspended = true;
         debugTarget = "";
+        wakeAll();
+    }
+
+    /** Wakes every registered sleeping instance and forgets the position index. */
+    public static void wakeAll() {
+        for (Map.Entry<Level, Map<Long, BlockEntity>> levelEntry : SLEEPING.entrySet()) {
+            for (BlockEntity entity : levelEntry.getValue().values()) {
+                if (entity instanceof BeSleepState state) {
+                    state.fettle$sleeping(false);
+                    state.fettle$skippedTicks(0);
+                    state.fettle$observedTicks(0);
+                }
+            }
+        }
+        SLEEPING.clear();
+    }
+
+    /** Wake condition: a block changed at this position or next to it. */
+    public static void wakeAround(Level level, BlockPos pos) {
+        Map<Long, BlockEntity> sleeping = level == null ? null : SLEEPING.get(level);
+        if (sleeping == null || sleeping.isEmpty()) {
+            return;
+        }
+        wakeAt(level, sleeping, pos);
+        for (Direction direction : Direction.values()) {
+            wakeAt(level, sleeping, pos.relative(direction));
+        }
+    }
+
+    private static void wakeAt(Level level, Map<Long, BlockEntity> sleeping, BlockPos pos) {
+        BlockEntity entity = sleeping.get(pos.asLong());
+        if (entity != null && wake(entity)) {
+            wakesByBlockUpdate.incrementAndGet();
+        }
+    }
+
+    /** Wake condition: something asked this block entity for a capability. */
+    public static void wakeQueried(BlockEntity entity) {
+        if (entity instanceof BeSleepState state && state.fettle$sleeping() && wake(entity)) {
+            wakesByCapability.incrementAndGet();
+        }
+    }
+
+    private static boolean wake(BlockEntity entity) {
+        if (!(entity instanceof BeSleepState state) || !state.fettle$sleeping()) {
+            return false;
+        }
+        state.fettle$sleeping(false);
+        state.fettle$skippedTicks(0);
+        state.fettle$observedTicks(0);
+        unregister(entity);
+        return true;
+    }
+
+    private static void register(BlockEntity entity) {
+        Level level = entity.getLevel();
+        if (level == null) {
+            return;
+        }
+        SLEEPING.computeIfAbsent(level, $ -> new ConcurrentHashMap<>())
+                .put(entity.getBlockPos().asLong(), entity);
+    }
+
+    private static void unregister(BlockEntity entity) {
+        Level level = entity.getLevel();
+        if (level == null) {
+            return;
+        }
+        Map<Long, BlockEntity> sleeping = SLEEPING.get(level);
+        if (sleeping != null) {
+            sleeping.remove(entity.getBlockPos().asLong());
+            if (sleeping.isEmpty()) {
+                SLEEPING.remove(level);
+            }
+        }
     }
 
     public static String report() {
@@ -85,7 +175,10 @@ public final class BeSleepController {
                 .append(" maxSkipTicks=").append(maxSkipTicks())
                 .append(" blacklistAfter=").append(HotFlags.BE_SLEEPING_BLACKLIST_WAKES)
                 .append(" blacklisted=").append(BLACKLIST)
-                .append(" events=").append(blacklistEvents.get());
+                .append(" events=").append(blacklistEvents.get())
+                .append(" sleepRegistered=").append(sleepingInstances())
+                .append(" wakes(change/block/capability)=").append(wakesByChange.get()).append('/')
+                .append(wakesByBlockUpdate.get()).append('/').append(wakesByCapability.get());
         for (Map.Entry<String, long[]> entry : CLASS_STATS.entrySet()) {
             long[] value = entry.getValue();
             builder.append(String.format(Locale.ROOT,
@@ -108,6 +201,15 @@ public final class BeSleepController {
     }
 
     /** @return true when this instance's class is on the whitelist (and not blacklisted). */
+    /** Number of instances currently registered as sleeping (across all levels). */
+    private static int sleepingInstances() {
+        int total = 0;
+        for (Map<Long, BlockEntity> perLevel : SLEEPING.values()) {
+            total += perLevel.size();
+        }
+        return total;
+    }
+
     public static boolean targeted(BlockEntity be) {
         String simple = className(be);
         if (BLACKLIST.contains(simple)) {
@@ -243,10 +345,7 @@ public final class BeSleepController {
         }
         try {
             if (!targeted(be)) {
-                if (state.fettle$sleeping()) {
-                    state.fettle$sleeping(false);
-                    state.fettle$skippedTicks(0);
-                }
+                wake(be);
                 return true;
             }
             long[] stat = stats(be);
@@ -277,6 +376,7 @@ public final class BeSleepController {
             if (observed >= observeTicks()) {
                 state.fettle$sleeping(true);
                 state.fettle$skippedTicks(0);
+                register(be);
                 stat[1]++;
                 return false;
             }
@@ -296,10 +396,8 @@ public final class BeSleepController {
             return;
         }
         state.fettle$sawChange(true);
-        if (state.fettle$sleeping()) {
-            state.fettle$sleeping(false);
-            state.fettle$observedTicks(0);
-            state.fettle$skippedTicks(0);
+        if (state.fettle$sleeping() && wake(be)) {
+            wakesByChange.incrementAndGet();
             long[] stat = stats(be);
             stat[3]++;
             if (stat[3] >= HotFlags.BE_SLEEPING_BLACKLIST_WAKES) {

@@ -114,6 +114,16 @@ public final class FettleCommands {
                                         .executes(ctx -> reply(ctx.getSource(), runKineticTest(
                                                 ctx.getSource().getLevel(),
                                                 IntegerArgumentType.getInteger(ctx, "iterations"))))))
+                        .then(Commands.literal("cap")
+                                .then(Commands.argument("x", IntegerArgumentType.integer())
+                                        .then(Commands.argument("y", IntegerArgumentType.integer())
+                                                .then(Commands.argument("z", IntegerArgumentType.integer())
+                                                        .executes(ctx -> reply(ctx.getSource(), queryCapability(
+                                                                ctx.getSource().getLevel(),
+                                                                new BlockPos(
+                                                                        IntegerArgumentType.getInteger(ctx, "x"),
+                                                                        IntegerArgumentType.getInteger(ctx, "y"),
+                                                                        IntegerArgumentType.getInteger(ctx, "z")))))))))
                         .then(Commands.literal("hoppers")
                                 .then(Commands.argument("side", IntegerArgumentType.integer(1, 64))
                                         .executes(ctx -> reply(ctx.getSource(), placeHoppers(
@@ -177,6 +187,20 @@ public final class FettleCommands {
                     + String.join("\n  ", lines);
         } catch (Throwable t) {
             return "idle report failed: " + t;
+        }
+    }
+
+    /** Asks for the item-handler capability at a position: exercises the capability wake condition. */
+    private static String queryCapability(net.minecraft.server.level.ServerLevel level, BlockPos pos) {
+        try {
+            net.minecraft.world.level.block.entity.BlockEntity entity = level.getBlockEntity(pos);
+            Object handler = net.neoforged.neoforge.capabilities.Capabilities.ItemHandler.BLOCK
+                    .getCapability(level, pos, level.getBlockState(pos), entity, null);
+            return "capability query at " + pos.toShortString() + " on "
+                    + (entity == null ? "no block entity" : entity.getClass().getSimpleName())
+                    + " -> " + (handler == null ? "null" : handler.getClass().getSimpleName());
+        } catch (Throwable t) {
+            return "capability query failed: " + t;
         }
     }
 
