@@ -70,6 +70,4 @@ jobs:
           cp libs/create-1.21.1-6.0.10.jar run/server/mods/
 
       - name: Run the behaviour gate
-        env:
-          FETTLE_GATE_HEADLESS: '1'
         run: python3 tools/fettle_gate.py

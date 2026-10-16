@@ -29,18 +29,35 @@ def rcon(command, timeout=120):
     return (out.stdout or "") + (out.stderr or "")
 
 
+def proxy_available():
+    """True when the local dev proxy (127.0.0.1:7890) is listening."""
+    import socket
+    try:
+        with socket.create_connection(("127.0.0.1", 7890), timeout=0.3):
+            return True
+    except OSError:
+        return False
+
+
 def start_server():
     env = dict(os.environ)
-    env["JAVA_HOME"] = r"C:\Program Files\Java\jdk-21.0.10"
-    env["PATH"] = env["JAVA_HOME"] + r"\bin;" + env.get("PATH", "")
     wrapper = "gradlew.bat" if os.name == "nt" else "gradlew"
     if os.path.exists(SERVER_LOG):
         os.remove(SERVER_LOG)
-    gradle_args = [os.path.join(PROJECT, wrapper), "runServer", "--no-daemon", "--console=plain",
-                   r"-Dorg.gradle.java.home=C:\Program Files\Java\jdk-21.0.10",
-                   "-Dhttp.proxyHost=127.0.0.1", "-Dhttp.proxyPort=7890",
-                   "-Dhttps.proxyHost=127.0.0.1", "-Dhttps.proxyPort=7890",
-                   "-Dhttp.nonProxyHosts=localhost"]
+    gradle_args = [os.path.join(PROJECT, wrapper), "runServer", "--no-daemon", "--console=plain"]
+
+    # Local Windows checkout: pin the JDK and use the local HTTP proxy when one is running. On CI
+    # (Linux) the JDK comes from the setup-java action and there is no proxy, so neither is added.
+    if os.name == "nt":
+        jdk = r"C:\Program Files\Java\jdk-21.0.10"
+        if os.path.isdir(jdk):
+            env["JAVA_HOME"] = jdk
+            env["PATH"] = os.path.join(jdk, "bin") + os.pathsep + env.get("PATH", "")
+            gradle_args.append(r"-Dorg.gradle.java.home=" + jdk)
+    if proxy_available():
+        gradle_args += ["-Dhttp.proxyHost=127.0.0.1", "-Dhttp.proxyPort=7890",
+                        "-Dhttps.proxyHost=127.0.0.1", "-Dhttps.proxyPort=7890",
+                        "-Dhttp.nonProxyHosts=localhost"]
     log = open(os.path.join(PROJECT, "build", "gate-server.log"), "w", encoding="utf8")
     proc = subprocess.Popen(gradle_args, cwd=PROJECT, env=env, stdout=log, stderr=subprocess.STDOUT)
     # a stale log would make the readiness check pass instantly; wait for a fresh one
@@ -78,10 +95,18 @@ def main():
         print("[gate] server up")
 
         # 1) kinetic differential (needs a live network)
+        # The network only exists once the just-placed shaft block entities have ticked and attached,
+        # so poll for a while instead of assuming a fixed delay.
         rcon("execute positioned 0 100 4800 run fettle debug kinetics 200")
-        time.sleep(10)
-        kin = rcon("fettle debug kinetictest 3")
+        kin = ""
+        for _ in range(12):
+            time.sleep(5)
+            kin = rcon("fettle debug kinetictest 3")
+            if "no populated network" not in kin:
+                break
         print("[gate] " + kin.strip())
+        if "no populated network" in kin:
+            failures.append("kinetic differential: no populated kinetic network (infrastructure)")
         if "mismatches=0" not in kin:
             failures.append("kinetic differential produced no clean result")
         for label in ("stress=[n=", "afterReconcile=[n="):
