@@ -57,6 +57,9 @@ public final class CreateMicroBenchmarks {
         if ("beltShaft".equals(name)) {
             return beltShaft(level, iterations);
         }
+        if ("fluidSearchQueue".equals(name)) {
+            return fluidSearchQueue(iterations);
+        }
         if ("mountedStorageTick".equals(name)) {
             return mountedStorageTick(iterations);
         }
@@ -64,6 +67,38 @@ public final class CreateMicroBenchmarks {
             return smartBETick(level, iterations);
         }
         return "unknown micro benchmark: " + name;
+    }
+
+    /**
+     * F1 data-structure comparison: drain a frontier of {@code iterations} entries, once with
+     * {@code ArrayList.remove(0)} (vanilla) and once with {@code ArrayDeque.pollFirst()}. Both are FIFO,
+     * so this isolates exactly the cost the mixin removes.
+     */
+    private static String fluidSearchQueue(int iterations) {
+        int n = Math.min(iterations, 400_000);
+        java.util.ArrayList<Integer> list = new java.util.ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            list.add(i);
+        }
+        long start = System.nanoTime();
+        while (!list.isEmpty()) {
+            list.remove(0);
+        }
+        long listNanos = System.nanoTime() - start;
+
+        java.util.ArrayDeque<Integer> deque = new java.util.ArrayDeque<>(n);
+        for (int i = 0; i < n; i++) {
+            deque.addLast(i);
+        }
+        start = System.nanoTime();
+        while (!deque.isEmpty()) {
+            deque.pollFirst();
+        }
+        long dequeNanos = System.nanoTime() - start;
+
+        return String.format(Locale.ROOT,
+                "fluidSearchQueue: n=%d ArrayList.remove(0)=%.2f ms  ArrayDeque.poll=%.3f ms  speedup=%.0fx",
+                n, listNanos / 1e6, dequeNanos / 1e6, (double) listNanos / Math.max(1L, dequeNanos));
     }
 
     /** Allocated bytes of the calling thread, or -1 when the JVM does not expose it. */
