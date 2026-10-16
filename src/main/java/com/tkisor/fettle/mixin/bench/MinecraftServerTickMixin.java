@@ -16,10 +16,16 @@ public abstract class MinecraftServerTickMixin {
     @Unique
     private long fettle$tickStart;
 
+    @Unique
+    private int fettle$proximityTimer;
+
     @Inject(method = "tickServer", at = @At("HEAD"))
     private void fettle$benchTickStart(BooleanSupplier hasTimeLeft, CallbackInfo ci) {
         com.tkisor.fettle.util.ServerTickClock.advance();
         com.tkisor.fettle.observe.BehaviourProbe.maybeDump();
+        if ((++fettle$proximityTimer % 20) == 0) {
+            com.tkisor.fettle.observe.BeSleepController.wakeNearPlayers();
+        }
         if (TickRecorder.isArmed()) {
             fettle$tickStart = System.nanoTime();
         }

@@ -8,7 +8,12 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.core.BlockPos;
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.ChunkPos;
 import java.util.HashMap;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -47,6 +52,8 @@ public final class BeSleepController {
     private static final AtomicLong wakesByChange = new AtomicLong();
     private static final AtomicLong wakesByBlockUpdate = new AtomicLong();
     private static final AtomicLong wakesByCapability = new AtomicLong();
+    private static final AtomicLong wakesByInteraction = new AtomicLong();
+    private static final AtomicLong wakesByProximity = new AtomicLong();
 
     private static final Map<Class<?>, Boolean> TARGET_CACHE = new ConcurrentHashMap<>();
     private static final Map<String, Set<String>> MOD_CLASSES = new ConcurrentHashMap<>();
@@ -123,6 +130,48 @@ public final class BeSleepController {
         }
     }
 
+    /** Wake condition: a player interacted with the block at this position. */
+    public static void wakeAt(Level level, BlockPos pos) {
+        Map<Long, BlockEntity> sleeping = level == null ? null : SLEEPING.get(level);
+        if (sleeping == null || sleeping.isEmpty()) {
+            return;
+        }
+        BlockEntity entity = sleeping.get(pos.asLong());
+        if (entity != null && wake(entity)) {
+            wakesByInteraction.incrementAndGet();
+        }
+    }
+
+    /**
+     * Wake condition: a player entered the chunk of a sleeping instance. Runs every 20 ticks near the
+     * start of the server tick, so walking into a base wakes what the player is about to use.
+     */
+    public static void wakeNearPlayers() {
+        if (SLEEPING.isEmpty()) {
+            return;
+        }
+        List<BlockEntity> candidates = new ArrayList<>();
+        for (Map.Entry<Level, Map<Long, BlockEntity>> levelEntry : SLEEPING.entrySet()) {
+            if (!(levelEntry.getKey() instanceof ServerLevel serverLevel)) {
+                continue;
+            }
+            for (ServerPlayer player : serverLevel.players()) {
+                ChunkPos chunk = player.chunkPosition();
+                for (Map.Entry<Long, BlockEntity> entry : levelEntry.getValue().entrySet()) {
+                    BlockPos pos = BlockPos.of(entry.getKey());
+                    if ((pos.getX() >> 4) == chunk.x && (pos.getZ() >> 4) == chunk.z) {
+                        candidates.add(entry.getValue());
+                    }
+                }
+            }
+        }
+        for (BlockEntity entity : candidates) {
+            if (wake(entity)) {
+                wakesByProximity.incrementAndGet();
+            }
+        }
+    }
+
     /** Wake condition: something asked this block entity for a capability. */
     public static void wakeQueried(BlockEntity entity) {
         if (entity instanceof BeSleepState state && state.fettle$sleeping() && wake(entity)) {
@@ -177,8 +226,10 @@ public final class BeSleepController {
                 .append(" blacklisted=").append(BLACKLIST)
                 .append(" events=").append(blacklistEvents.get())
                 .append(" sleepRegistered=").append(sleepingInstances())
-                .append(" wakes(change/block/capability)=").append(wakesByChange.get()).append('/')
-                .append(wakesByBlockUpdate.get()).append('/').append(wakesByCapability.get());
+                .append(" wakes(change/block/capability/interact/proximity)=")
+                .append(wakesByChange.get()).append('/').append(wakesByBlockUpdate.get()).append('/')
+                .append(wakesByCapability.get()).append('/').append(wakesByInteraction.get()).append('/')
+                .append(wakesByProximity.get());
         for (Map.Entry<String, long[]> entry : CLASS_STATS.entrySet()) {
             long[] value = entry.getValue();
             builder.append(String.format(Locale.ROOT,
@@ -341,6 +392,10 @@ public final class BeSleepController {
      */
     public static boolean shouldTick(BlockEntity be) {
         if (!enabled() || !(be instanceof BeSleepState state)) {
+            return true;
+        }
+        // Server-side optimisation: never touch client-side block entity ticks.
+        if (be.getLevel() != null && be.getLevel().isClientSide()) {
             return true;
         }
         try {

@@ -13,6 +13,7 @@
     "observe.BlockEntityTickerMixin",
     "observe.LevelBlockUpdateMixin",
     "observe.BlockCapabilityMixin",
+    "observe.PlayerInteractionMixin",
     "recipe.RecipeManagerMixin"
   ],
   "client": [],
