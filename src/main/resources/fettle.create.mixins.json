@@ -14,6 +14,8 @@
     "TravellingPointPositionMixin",
     "BeltBlockMixin",
     "MountedStorageFastPathMixin",
+    "fluids.FluidManipulationAccessor",
+    "fluids.FluidManipulationSearchMixin",
     "FactoryPanelBehaviourMixin",
     "PackageItemMixin",
     "FactoryPanelBenchMixin",

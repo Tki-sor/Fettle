@@ -29,6 +29,7 @@ public final class FettleConfig {
     private static final ModConfigSpec.IntValue BE_SLEEPING_OBSERVE_TICKS;
     private static final ModConfigSpec.IntValue BE_SLEEPING_MAX_SKIP_TICKS;
     private static final ModConfigSpec.IntValue BE_SLEEPING_BLACKLIST_WAKES;
+    private static final ModConfigSpec.BooleanValue CREATE_FLUID_SEARCH_DEQUE;
     private static final ModConfigSpec.BooleanValue CREATE_MOUNTED_STORAGE_FAST_PATH;
     private static final ModConfigSpec.BooleanValue BENCH_PROBES;
     private static final ModConfigSpec.BooleanValue DEBUG_PANEL_KEEP_ALIVE;
@@ -140,6 +141,12 @@ public final class FettleConfig {
                         "at 5 versus 0.5302 ms at 1 - no difference. See docs/fettle/19-client-spark-test.md.",
                         "Set 5 only if you are experimenting; throughput is unchanged either way.")
                 .defineInRange("factoryPanelCheckInterval", 1, 1, 100);
+        CREATE_FLUID_SEARCH_DEQUE = b
+                .comment("FluidManipulationBehaviour#search: dequeue the fluid BFS with an ArrayDeque instead of",
+                        "ArrayList.remove(0). Both are FIFO, so order, result and leftover frontier are identical;",
+                        "only the O(n) arraycopy per pop disappears (measured 519x on the dequeue itself).",
+                        "See docs/fettle/23-fluid-search-deque.md.")
+                .define("fluidSearchDeque", false);
         CREATE_MOUNTED_STORAGE_FAST_PATH = b
                 .comment("MountedStorageManager#tick: skip the two per-sync HashMap allocations when a",
                         "contraption has no synced item/fluid storage. The vanilla path is otherwise a no-op,",
@@ -247,6 +254,10 @@ public final class FettleConfig {
 
     public static boolean createBeltShaftLookup() {
         return createEnabled() && get(CREATE_BELT_SHAFT, true);
+    }
+
+    public static boolean createFluidSearchDeque() {
+        return createEnabled() && boolOverride("fluidSearchDeque", get(CREATE_FLUID_SEARCH_DEQUE, true));
     }
 
     public static boolean createMountedStorageFastPath() {
