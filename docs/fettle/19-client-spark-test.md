@@ -69,3 +69,23 @@ Tick durations:  2.4/3.1/4.4/8.1;  2.4/3.1/4.7/9.7
 /spark profiler start --timeout 40 --comment fettle-on
 ```
 
+
+## 19.6 面板节流客户端 A/B（4096 个真面板，spark 双曲线）
+
+场景：`/fettle debug panels 64 2` → `[Fettle] placed 4096 factory panels at -2, -60, 0 (keep-alive=false)`。
+客户端加了 `pauseOnLostFocus:false`，否则控制模式放开鼠标会让单机存档暂停，测出来的 TPS 没有意义。
+
+| 状态 | TPS (5s/10s/1m/5m/15m) | Tick min/med/95%/max ms（10s；1m） | spark 曲线 |
+| --- | --- | --- | --- |
+| **节流开** `factoryPanelCheckInterval=5`（默认） | 20.0, 20.0, *20.0, 20.0, *20.0 | 2.4 / **3.1** / 4.5 / 6.3；2.4 / **3.2** / 4.8 / 70.5 | https://spark.lucko.me/s8lBpEzdjS |
+| **节流关** `factoryPanelCheckInterval=1`（原版行为） | 20.0, 20.0, *20.0, 20.0, *20.0 | 2.4 / **3.1** / 4.6 / 7.3；2.4 / **3.2** / 4.4 / 63.4 | https://spark.lucko.me/fh3nRzhaFb |
+
+**结论（诚实版）**：客户端整 tick 的 MSPT 在两态下**分不出来**（中位都是 3.1 ms，95% 4.5 vs 4.6 ms），
+这和之前服务端侧的结果一致——B8 的 **−72% 是"面板段落耗时"**，整 tick 收益只有 −0.4…−1.2 ms，在 3 ms 的基线上就是噪声。
+要看这段收益必须用**分段计时**（我们服务端 A/B 用的 `TickRecorder`），spark 的整 tick 采样看不到。
+4096 个面板在这个客户端也远没到瓶颈（20 TPS、3 ms/50 ms 预算）。
+
+顺带一条工程笔记：spark 从游戏内自动上传**连续失败两次**（`An error occurred whilst uploading the results`），
+回退把曲线存到 `run/config/spark/profile-*.sparkprofile`；
+我用 `curl -X POST --data-binary @file -H 'Content-Encoding: gzip' https://bytebin.lucko.me/post` 手动补传，拿到 key 后即上面第二条链接。
+
