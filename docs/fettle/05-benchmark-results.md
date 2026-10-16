@@ -44,6 +44,10 @@
 
 ## 4. 这一轮发现的两个硬问题（比数字更重要）
 
+> ⚠️ **面板相关的数字（本节及 07）请配合 [19-client-spark-test.md](19-client-spark-test.md) 第 19.10 节阅读**：
+> 它们是**脚手架场景**（`debugPanelKeepAlive` 强行吊活）下的结果，而自然激活的客户端场景没有复现出差异；
+> 面板节流的默认值已改回 **1（原版）**，即默认关闭。
+
 1. **工厂面板无法用 `/setblock` 造出来**：`create:factory_gauge`（方块 id）放下去后会被立刻移除（`data get block` 在几秒后报 "not a block entity"），各种 `face/facing` 组合与垫墙都试过，全部不存活。推测它依赖正常放置流程（`setPlacedBy`/SpecialBlockItemRequirement）建立面板结构。
    → **B8 的收益这一轮没能测**。要测它必须用**真实放置路径**：GameTest 结构模板、或写一个调试命令调用 `FactoryPanelBlock` 的放置逻辑。
 2. **Spark 的 `/spark tps` 经 RCON 没有任何文本返回**，控制台也没有输出（Spark 1.10.124 / Windows / Java 引擎）。

@@ -17,7 +17,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * of the most repeated per-tick scans in a big factory.
  *
  * <p>Behaviour relaxation (explicitly approved): the two server-side calls now run every
- * {@code factoryPanelCheckInterval} ticks (default 5 = 0.25 s) instead of every tick. The requests
+ * {@code factoryPanelCheckInterval} ticks instead of every tick. The default is <b>1</b>, i.e. this
+ * optimisation is opt-in and currently unproven: a scaffolding scene measured -72% of the panel
+ * section, but a naturally active client scene showed no difference (docs/fettle/19, section 19.10).
+ * The requests
  * themselves are untouched, so throughput is unchanged; only the observation latency grows, by at
  * most the configured interval. Each panel uses its identity hash as a phase offset, so the work is
  * spread across ticks rather than landing on the same tick for every panel.

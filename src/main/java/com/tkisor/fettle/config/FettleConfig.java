@@ -131,10 +131,14 @@ public final class FettleConfig {
                 .define("beltShaftLookup", true);
         CREATE_PANEL_INTERVAL = b
                 .comment("Factory panels: run the per-tick storage/request aggregation every N ticks instead of every tick.",
-                        "1 = vanilla behaviour. 5 = the panel reacts up to 5 ticks (0.25 s) later; throughput is unchanged",
-                        "because the request itself is unchanged, only its observation interval. Panels are phase-offset",
-                        "so the work is spread over ticks instead of spiking on one.")
-                .defineInRange("factoryPanelCheckInterval", 5, 1, 100);
+                        "DEFAULT 1 = vanilla behaviour, and that is deliberate: this optimisation is NOT proven yet.",
+                        "A server-side scaffolding scene (panels kept alive by a diagnostic that cancels Create's own",
+                        "self-removal) measured the panel section at 1.16-1.30 -> 0.35-0.37 ms, but that scene made the",
+                        "panels do ~3.6x more per-tick work than naturally activated ones do. On a naturally",
+                        "active client scene (4096 wired panels, 693-tick windows) the panel section was 0.5210 ms",
+                        "at 5 versus 0.5302 ms at 1 - no difference. See docs/fettle/19-client-spark-test.md.",
+                        "Set 5 only if you are experimenting; throughput is unchanged either way.")
+                .defineInRange("factoryPanelCheckInterval", 1, 1, 100);
         CREATE_KINETIC_INCREMENTAL = b
                 .comment("KineticNetwork#updateStressFor: update the running stress sum in O(1) instead of",
                         "re-summing (and re-validating) every member. The exact scan runs once per server tick.")

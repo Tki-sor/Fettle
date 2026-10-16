@@ -16,7 +16,7 @@ runtime. Everything is driven by config; there are no JVM arguments or environme
 | Recipe index (vanilla + all mods) | Pre-compiled bitset pre-filter for `RecipeManager#getRecipeFor`; the final decision stays with vanilla `Recipe#matches` | **−85%** per lookup (23.4 µs → 3.5–4.1 µs); parity `checked=1211 mismatches=0` |
 | Kinetic network | Per-tick memo of the block-entity validation lookup, plus O(1) incremental stress bookkeeping with a per-tick reconciliation | **4.5–5×** (lookups 442,200 → 201); **213×** on the update path |
 | Train collision | Candidate filter from a per-tick carriage bounding-box snapshot, with a moved-train guard | **−94%** candidates; differential test vs vanilla: **0 mismatches** |
-| Factory panels | Aggregation every N ticks instead of every tick (default 5) | panel section **−72%**, whole tick −0.4…−1.2 ms at 4,500 panels |
+| Factory panels | Aggregation every N ticks instead of every tick — **opt-in, default = vanilla** | server scaffolding scene: panel section −72%; naturally active client scene: 0.5210 vs 0.5302 ms → **no benefit, unproven** ([docs 19](Fettle-1.21.1/docs/fettle/19-client-spark-test.md)) |
 | Create misc | `TrackGraph#getConnectionsFrom` allocation, `BeltBlock#hasShaftTowards`, package address regex cache | address cache **~4×** |
 | BE observation + sleeping pilot | Zero-behaviour-change observation of per-class tick/change/sync counts, plus an opt-in sleeping pilot with config whitelist, heartbeats and auto-blacklist | steady state **19 skips : 1 heartbeat** (95% skipped) |
 
@@ -59,7 +59,7 @@ Everything is a config option (no JVM flags). File: `config/fettle-common.toml`.
 | — | `enabled` | true | Master switch; off = 100% vanilla behaviour |
 | `recipe` | `indexEnabled`, `bitsetIndex`, `cacheGetAllRecipesFor`, `strictVanillaSerializersOnly`, `selfTestOnStartup` | true / true / true / false / false | Recipe index layer |
 | `create` | `enabled`, `trackGraphConnections`, `beltShaftLookup`, `kineticIncrementalStress`, `kineticValidityCache`, `trainCollisionIndex`, `trainCollisionIndexVerifyMoved`, `travelPositionCache`, `packageAddressCache` | all true | Create-targeted injection |
-| `create` | `factoryPanelCheckInterval` | 5 | Panel aggregation interval (1 = vanilla) |
+| `create` | `factoryPanelCheckInterval` | 1 | Panel aggregation interval; **1 = vanilla, and that is the default because the optimisation is unproven** |
 | `compat` | `yieldToFastSuite` | false | Do not index if FastSuite is installed |
 | `diagnostics` | `benchProbes`, `debugPanelKeepAlive`, `mixinLog` | false | Measurement scaffolds, not gameplay features |
 | `observe` | `enabled`, `reportIntervalMinutes` | false, 5 | Per-class tick/change/sync observation; snapshots appended to `fettle-observe.csv` |
