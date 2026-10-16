@@ -141,6 +141,15 @@ public final class FettleCommands {
                                                                 StringArgumentType.getString(ctx, "class"),
                                                                 IntegerArgumentType.getInteger(ctx, "observe"),
                                                                 IntegerArgumentType.getInteger(ctx, "maxSkip"))))))))
+                        .then(Commands.literal("tp")
+                                .then(Commands.argument("x", IntegerArgumentType.integer())
+                                        .then(Commands.argument("y", IntegerArgumentType.integer())
+                                                .then(Commands.argument("z", IntegerArgumentType.integer())
+                                                        .executes(ctx -> reply(ctx.getSource(), teleportPlayer(
+                                                                ctx.getSource(),
+                                                                IntegerArgumentType.getInteger(ctx, "x"),
+                                                                IntegerArgumentType.getInteger(ctx, "y"),
+                                                                IntegerArgumentType.getInteger(ctx, "z"))))))))
                         .then(Commands.literal("panelwire")
                                 .then(Commands.argument("side", IntegerArgumentType.integer(1, 64))
                                         .then(Commands.argument("spacing", IntegerArgumentType.integer(2, 16))
@@ -291,6 +300,16 @@ public final class FettleCommands {
             Throwable cause = t.getCause() != null ? t.getCause() : t;
             return "debug trains failed: " + cause;
         }
+    }
+
+    /** Debug helper: move the executing player. Works without cheats, unlike the vanilla command. */
+    private static String teleportPlayer(CommandSourceStack source, int x, int y, int z) {
+        net.minecraft.server.level.ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            return "debug tp needs a player";
+        }
+        player.teleportTo(source.getLevel(), x + 0.5, y, z + 0.5, player.getYRot(), player.getXRot());
+        return "teleported to " + x + " " + y + " " + z;
     }
 
     private static String wirePanelsAlive(net.minecraft.server.level.ServerLevel level, BlockPos origin,

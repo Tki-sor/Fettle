@@ -51,7 +51,8 @@ neoForge {
             // config option, and measurement modes are runtime-toggled with /fettle feature.
         }
         client {
-            client()        }
+            client()
+        }
         server {
             server()
             programArgument '--nogui'
