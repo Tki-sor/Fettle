@@ -15,6 +15,7 @@ public abstract class BlockEntitySleepStateMixin implements BeSleepState {
 
     @Unique private int fettle$observedTicks;
     @Unique private int fettle$skippedTicks;
+    @Unique private int fettle$probeAt = 1;
     @Unique private boolean fettle$sleeping;
     @Unique private boolean fettle$sawChange;
 
@@ -25,6 +26,10 @@ public abstract class BlockEntitySleepStateMixin implements BeSleepState {
     @Override public int fettle$skippedTicks() { return fettle$skippedTicks; }
 
     @Override public void fettle$skippedTicks(int value) { fettle$skippedTicks = value; }
+
+    @Override public int fettle$probeAt() { return fettle$probeAt; }
+
+    @Override public void fettle$probeAt(int value) { fettle$probeAt = Math.max(1, value); }
 
     @Override public boolean fettle$sleeping() { return fettle$sleeping; }
 

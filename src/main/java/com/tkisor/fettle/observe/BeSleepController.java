@@ -489,7 +489,8 @@ public final class BeSleepController {
             long[] stat = stats(be);
             if (state.fettle$sleeping()) {
                 int skipped = state.fettle$skippedTicks() + 1;
-                if (skipped >= maxSkipTicks()) {
+                int probeAt = Math.max(1, state.fettle$probeAt());
+                if (skipped >= probeAt) {
                     // heartbeat: run exactly one tick, then keep sleeping
                     state.fettle$skippedTicks(0);
                     stat[2]++;
@@ -497,6 +498,11 @@ public final class BeSleepController {
                     if (HotFlags.BE_SLEEPING_HEARTBEAT_CHECK) {
                         heartbeatCheck(be);
                     }
+                    // Exponential bootstrap: verify after 1, 2, 4, 8, ... skipped ticks and only then
+                    // settle on maxSkipTicks. A class that starts silent per-tick work is therefore
+                    // caught within a few ticks instead of up to maxSkipTicks.
+                    int grown = probeAt >= maxSkipTicks() / 2 ? maxSkipTicks() : probeAt * 2;
+                    state.fettle$probeAt(Math.max(1, Math.min(maxSkipTicks(), grown)));
                     return true;
                 }
                 state.fettle$skippedTicks(skipped);
@@ -523,6 +529,7 @@ public final class BeSleepController {
             if (observed >= observeTicks()) {
                 state.fettle$sleeping(true);
                 state.fettle$skippedTicks(0);
+                state.fettle$probeAt(1);
                 register(be);
                 stat[1]++;
                 return false;

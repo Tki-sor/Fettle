@@ -15,6 +15,11 @@ public interface BeSleepState {
 
     void fettle$skippedTicks(int value);
 
+    /** Skipped ticks to accumulate before the next heartbeat (exponential bootstrap, see BeSleepController). */
+    int fettle$probeAt();
+
+    void fettle$probeAt(int value);
+
     boolean fettle$sawChange();
 
     void fettle$sawChange(boolean value);

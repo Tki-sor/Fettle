@@ -152,3 +152,37 @@ moved across heartbeats                        0
 
 心跳节奏改成**指数启动**：第 1、2、4、8… 个跳过 tick 各验证一次，连续通过才放宽到 20。
 这样即便走兜底，初始损失也只有 1 tick。实现需要给 `BeSleepState` 加一个心跳计数（约 10 行 + 一轮验证）。
+
+## 30.10 指数启动心跳（已实现）：把**刚入睡**那段的暴露压到 1 tick
+
+心跳间隔不再固定 20，而是**逐次翻倍**：
+
+```
+probeAt: 1 -> 2 -> 4 -> 8 -> 20 -> 20 -> ...
+```
+
+每到一个 `probeAt` 就做一次心跳（真 tick 一次 + 状态自检），翻倍到 `maxSkipTicks` 后进入稳态。
+
+### 诚实说明它能覆盖到哪里、不能覆盖到哪里
+
+| 时段 | 一次"静默开始计时工作"的最大暴露 |
+| --- | --- |
+| 刚入睡后的前几次验证 | **1 / 2 / 4 / 8 tick**（逐次翻倍） |
+| 稳态（已连续验证安静很多次） | **`maxSkipTicks`（默认 20）** |
+
+也就是说：指数启动把**入睡初期**的暴露压到 1 tick；稳态仍然是 20 tick——
+这是**跳过比**与**检测延迟**的固有取舍（跳过比 ≈ probeAt）。
+真正把"常见形态"的损失压到 0 的是 30.7 的**观察期自检**（还在正常 tick 时就拒掉会动的类），
+加上既有的唤醒条件（交互/方块更新/capability/玩家接近）会把"有人用它"的实例立刻叫醒。
+
+### 门禁（改动后重跑，无回归）
+
+```
+[Fettle] kinetic incremental: members=201 ... afterReconcile=[n=3 mismatches=0]
+[Fettle] collisionDifferential: ... stale_guarded=[n=24 collisions=3 mismatches=0 missed=0]
+[gate] pilot delta ticks=9260 skipped=176403 ratio=19.05
+[Fettle] recipe parity self-test: checked=1211 skipped=340 emptyInputs=2 mismatches=0
+[gate] PASS
+```
+
+沉睡比仍是 **19.05**（稳态未变），其余差分全部 0 mismatch ✓。
