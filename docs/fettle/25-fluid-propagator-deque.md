@@ -57,3 +57,22 @@ fettle debug pipenet 16            # 在当前位置造 33x33 管道网格
 fettle debug fluidpropagate 0 100 0 200
 fettle feature fluidPropagatorDeque false   # 再跑一次对比
 ```
+
+## 25.6 F1 ② `PumpBlockEntity#distributePressureTo`：**决定不做**（附理由）
+
+原分析里的第二处 BFS。核对后判定**不值得改动**，理由是实测与结构两方面的：
+
+1. **触发频率极低**：调用链是 `onSpeedChanged`（泵转速绝对值变化）→ `updatePressureChange` → 下一 tick 的
+   `distributePressureTo`。稳态转速不变时**根本不执行**；
+2. **frontier 有硬上界**：`maxDistance = FluidPropagator.getPumpRange()`（默认 16），`distance + 1 >= maxDistance`
+   即停止扩张 → 搜索范围是半径 16 的球，前沿宽度最多几十到一百量级，
+   而 `remove(0)` 的代价正比于前沿宽度 → 单次只有几十微秒量级；
+3. **它不在 tick 热路径上**：即使优化，对 MSPT 的贡献也是 0（只在玩家改管道/转速变化时的一次性开销）；
+4. 它顺带能去掉的 `Pair<Integer, BlockPos>` 装箱属于**分配消除**类——我们已经用 A8/①②证明
+   HotSpot 的逃逸分析会把这类短命分配消掉（[22](22-allocation-optimisations.md)）；
+5. 而它的重写需要一整段与 `pipeGraph`/`validFaces` 强耦合的粘贴代码（见
+   [docs/perf/overwrites/PumpBlockEntity-distributePressureTo.md](../perf/overwrites/PumpBlockEntity-distributePressureTo.md)，300+ 行），
+   风险/收益比明显不划算。
+
+**结论**：F1 三处里，① 与 ③ 已做并入库；② 明确记录为「已评估、决定不做」，
+若将来它在 profiler 里真的冒头（例如某个把泵转速切得很频繁的装置），再回来做也不迟。
