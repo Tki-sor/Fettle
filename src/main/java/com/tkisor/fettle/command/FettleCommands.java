@@ -68,6 +68,10 @@ public final class FettleCommands {
                                                 IntegerArgumentType.getInteger(ctx, "iterations")))))))
                 .then(Commands.literal("idle")
                         .then(Commands.literal("report").executes(ctx -> reply(ctx.getSource(), idleReport())))
+                        .then(Commands.literal("candidates")
+                                .then(Commands.argument("minTicks", IntegerArgumentType.integer(1))
+                                        .executes(ctx -> reply(ctx.getSource(), idleCandidates(
+                                                IntegerArgumentType.getInteger(ctx, "minTicks"))))))
                         .then(Commands.literal("sleeptest").executes(ctx -> reply(ctx.getSource(), sleepReport())))
                         .then(Commands.literal("dump").executes(ctx -> {
                             try {
@@ -240,6 +244,19 @@ public final class FettleCommands {
         } catch (Throwable t) {
             Throwable cause = t.getCause() != null ? t.getCause() : t;
             return "micro benchmark failed: " + cause;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String idleCandidates(int minTicks) {
+        try {
+            Class<?> probe = Class.forName("com.tkisor.fettle.observe.BehaviourProbe");
+            java.util.List<String> lines = (java.util.List<String>) probe.getMethod("candidates", int.class)
+                    .invoke(null, minTicks);
+            return "sleep candidates (ticks>=" + minTicks + ", changed=0, sendData=0): " + lines.size()
+                    + "\n  " + String.join("\n  ", lines);
+        } catch (Throwable t) {
+            return "idle candidates failed: " + t;
         }
     }
 

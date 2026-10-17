@@ -126,6 +126,29 @@ public final class BehaviourProbe {
         return lines;
     }
 
+    /**
+     * @return true when this class has ticked at least {@code minTicks} times without a single
+     *         {@code setChanged} or {@code sendData} call - the data-driven sleep-candidate test (C7).
+     */
+    public static boolean isIdleClass(Class<?> type, long minTicks) {
+        long[] value = STATS.get(type);
+        return value != null && value[0] >= minTicks && value[1] == 0 && value[2] == 0;
+    }
+
+    /** @return the paste-ready whitelist entries for the sleep candidates, most-ticked first. */
+    public static List<String> candidates(int minTicks) {
+        List<Map.Entry<Class<?>, long[]>> entries = new ArrayList<>(STATS.entrySet());
+        entries.removeIf(entry -> entry.getValue()[0] < minTicks || entry.getValue()[1] != 0
+                || entry.getValue()[2] != 0);
+        entries.sort(Comparator.comparingLong((Map.Entry<Class<?>, long[]> e) -> e.getValue()[0]).reversed());
+        List<String> lines = new ArrayList<>();
+        for (Map.Entry<Class<?>, long[]> entry : entries) {
+            lines.add(String.format(Locale.ROOT, "%-60s ticks=%-10d changed=0 sendData=0",
+                    entry.getKey().getName(), entry.getValue()[0]));
+        }
+        return lines;
+    }
+
     /** @return the number of classes that never changed anything (sleep candidates). */
     public static int idleClasses() {
         int idle = 0;

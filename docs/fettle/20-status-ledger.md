@@ -24,6 +24,7 @@
 | 面板聚合节流 | ⚠️ **未证实** | **关（1）** | 脚手架场景面板段 −72%；自然激活客户端场景 0.5210 vs 0.5302 ms **无差异**。见 [19](19-client-spark-test.md) |
 | 沉睡试点：观察层 | ✅ 已验证 | 关（`observe.enabled`） | 逐类 tick/setChanged/sync 计数 + `fettle-observe.csv` 长期采集 |
 | 沉睡试点：白名单沉睡 + 心跳 | ✅ 已验证 | 关（`beSleeping.enabled`，白名单空） | 稳态 **19:1**（95% 跳过），实测 19.08 / 19.10 |
+| 沉睡试点自动白名单（C7） | ⚠️ **候选列表可用，自动采纳默认关**（实测会采纳熔炉：计时器型方块会静默慢 20×） | **关** | `/fettle idle candidates` ✅（10 类中 8 个候选）；自动采纳实测采纳了 `FurnaceBlockEntity`/`BellBlockEntity` → 保留实现、默认 false。见 [29](29-auto-whitelist-verdict.md) |
 | 沉睡试点：唤醒条件 | ✅ 已验证 | 随试点 | `setChanged` / 心跳 / 一键暂停 / **方块+邻居更新** / **capability 查询** / **玩家交互** / **玩家接近**（18.3、18.6.1） |
 | 沉睡试点：区块重载 | ✅ 天然安全 | — | BE 重载即新实例，沉睡状态是 `@Unique` 实例字段 |
 | 沉睡试点：客户端 tick | ✅ 明确不参与 | — | `shouldTick` 对 `isClientSide()` 直接放行 |

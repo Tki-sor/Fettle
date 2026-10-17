@@ -29,6 +29,8 @@ public final class FettleConfig {
     private static final ModConfigSpec.IntValue BE_SLEEPING_OBSERVE_TICKS;
     private static final ModConfigSpec.IntValue BE_SLEEPING_MAX_SKIP_TICKS;
     private static final ModConfigSpec.IntValue BE_SLEEPING_BLACKLIST_WAKES;
+    private static final ModConfigSpec.BooleanValue BE_SLEEPING_AUTO_WHITELIST;
+    private static final ModConfigSpec.IntValue BE_SLEEPING_AUTO_MIN_TICKS;
     private static final ModConfigSpec.BooleanValue CREATE_FLUID_SEARCH_DEQUE;
     private static final ModConfigSpec.BooleanValue CREATE_FLUID_PROPAGATOR_DEQUE;
     private static final ModConfigSpec.BooleanValue CREATE_KINETIC_INCREMENTAL_CAPACITY;
@@ -97,6 +99,20 @@ public final class FettleConfig {
                 .comment("Auto-blacklist: if a whitelisted class is woken this many times, it is dropped from the",
                         "whitelist for the rest of the run (it is evidently not idle).")
                 .defineInRange("blacklistAfterWakes", 20, 1, 1000000);
+        BE_SLEEPING_AUTO_WHITELIST = b
+                .comment("C7: derive the whitelist from the observation layer instead of hand-writing class names.",
+                        "A class is adopted once it has ticked autoWhitelistMinTicks times with no setChanged and no",
+                        "sendData (see /fettle idle candidates). Auto-blacklist and /fettle idle wake still apply, and",
+                        "beSleeping.enabled still has to be on - this only decides which classes are eligible.",
+                        "WARNING, measured 2026-10-17: observation data is NOT enough to decide safety. A sleeping",
+                        "instance only ticks once per heartbeat (default 1 in 20), so a block that advances state on",
+                        "a timer without calling setChanged - a vanilla furnace is the proof, it was adopted - would",
+                        "silently run 20x slower. Keep this off unless you have reviewed /fettle idle candidates",
+                        "yourself and know every class in it. See docs/fettle/29-auto-whitelist-verdict.md.")
+                .define("autoWhitelist", false);
+        BE_SLEEPING_AUTO_MIN_TICKS = b
+                .comment("How many observed ticks a class needs before autoWhitelist adopts it.")
+                .defineInRange("autoWhitelistMinTicks", 1200, 100, 10000000);
         b.pop();
 
         b.push("recipe");
@@ -322,6 +338,14 @@ public final class FettleConfig {
 
     public static int beSleepingMaxSkipTicks() {
         return get(BE_SLEEPING_MAX_SKIP_TICKS, 20);
+    }
+
+    public static boolean beSleepingAutoWhitelist() {
+        return boolOverride("autoWhitelist", get(BE_SLEEPING_AUTO_WHITELIST, false));
+    }
+
+    public static int beSleepingAutoMinTicks() {
+        return get(BE_SLEEPING_AUTO_MIN_TICKS, 1200);
     }
 
     public static int beSleepingBlacklistWakes() {

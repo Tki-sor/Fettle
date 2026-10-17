@@ -270,9 +270,29 @@ public final class BeSleepController {
             return simple.equals(debugTarget);
         }
         if (HotFlags.BE_SLEEPING_CLASSES.length == 0) {
+            return autoAdopted(be);
+        }
+        return targetCache(be.getClass()) || autoAdopted(be);
+    }
+
+    /**
+     * C7: adopt a class from the observation layer instead of the hand-written whitelist. A class
+     * qualifies only after {@code autoWhitelistMinTicks} observed ticks with zero setChanged and zero
+     * sendData calls, and only when {@code beSleeping.autoWhitelist} is on; the existing auto-blacklist
+     * and wake conditions still apply afterwards.
+     */
+    private static boolean autoAdopted(BlockEntity be) {
+        if (!HotFlags.BE_SLEEPING_AUTO_WHITELIST) {
             return false;
         }
-        return targetCache(be.getClass());
+        if (!BehaviourProbe.isIdleClass(be.getClass(), HotFlags.BE_SLEEPING_AUTO_MIN_TICKS)) {
+            return false;
+        }
+        if (AUTO_ADOPTED.add(be.getClass())) {
+            Fettle.LOGGER.info("[Fettle] BE sleeping: {} adopted from observation (>= {} ticks, no setChanged, no sendData)",
+                    be.getClass().getName(), HotFlags.BE_SLEEPING_AUTO_MIN_TICKS);
+        }
+        return true;
     }
 
     /**
@@ -381,6 +401,10 @@ public final class BeSleepController {
             return names;
         });
     }
+
+    /** Classes adopted by {@link #autoAdopted(BlockEntity)}, logged once each. */
+    private static final java.util.Set<Class<?>> AUTO_ADOPTED =
+            java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
 
     private static long[] stats(BlockEntity be) {
         return CLASS_STATS.computeIfAbsent(className(be), $ -> new long[5]);
