@@ -54,8 +54,23 @@ public final class RecipeParityCheck {
             }
         }
 
-        Fettle.LOGGER.info("[Fettle] recipe parity self-test: checked={} skipped={} mismatches={}",
-                checked, skipped, mismatches);
+        // Vanilla returns empty for an empty input; assert the fast path never disagrees. This is the
+        // regression test for the empty-input gap found in review (docs/fettle/26).
+        int emptyChecks = 0;
+        for (CraftingInput empty : List.of(CraftingInput.of(0, 0, List.of()), CraftingInput.of(1, 1,
+                List.of(ItemStack.EMPTY)))) {
+            Optional<RecipeHolder<CraftingRecipe>> result =
+                    manager.getRecipeFor(RecipeType.CRAFTING, empty, level);
+            emptyChecks++;
+            if (result.isPresent()) {
+                mismatches++;
+                Fettle.LOGGER.error("[Fettle] empty-input parity mismatch: indexed={} but vanilla returns empty",
+                        idOf(result));
+            }
+        }
+
+        Fettle.LOGGER.info("[Fettle] recipe parity self-test: checked={} skipped={} emptyInputs={} mismatches={}",
+                checked, skipped, emptyChecks, mismatches);
     }
 
     private static Optional<RecipeHolder<CraftingRecipe>> bruteForce(List<RecipeHolder<CraftingRecipe>> all,

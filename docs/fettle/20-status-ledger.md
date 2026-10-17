@@ -7,6 +7,7 @@
 | 项目 | 状态 | 默认 | 证据 / 数字 |
 | --- | --- | --- | --- |
 | 配方 bitset 预筛（`getRecipeFor`） | ✅ 已验证 | 开 | 23.4 µs → 3.5–4.1 µs（**−85%**）；parity `checked=1211 mismatches=0`，门禁每次复跑 |
+| 配方索引空输入守卫（复查修复） | ✅ 已验证 | — | 复查发现 3 参快速路径会绕过原版 `input.isEmpty()` 早退；已补守卫并写进 parity 自检：`emptyInputs=2 mismatches=0`，门禁 PASS。见 [26](26-recipe-empty-input-fix.md) |
 | `getAllRecipesFor` 列表缓存 | ✅ 已验证 | 开 | docs 05 / 08 |
 | 动能网络校验查询 memo | ✅ 已验证 | 开 | 442,200 → 201 次查询（**4.5–5×**） |
 | 动能增量应力 O(1) + 每 tick 对账 | ✅ 已验证 | 开 | 6.612 → 0.031 µs/op（**213×**）；`afterReconcile` 0 mismatch |

@@ -44,6 +44,12 @@ public abstract class RecipeManagerMixin {
     )
     private void fettle$fastGetRecipeFor(RecipeType<?> type, RecipeInput input, Level level,
                                          CallbackInfoReturnable<Optional<RecipeHolder<?>>> cir) {
+        if (input.isEmpty()) {
+            // Vanilla refuses an empty input before it looks at a single recipe, so the fast path must
+            // not guess either: fall through and let vanilla return nothing. (Found by a review of the
+            // shipped index, docs/fettle/26.)
+            return;
+        }
         RecipeIndex.TypeIndex index = fettle$typeIndex(type);
         if (index == null) {
             return; // not indexed -> let vanilla do its thing
