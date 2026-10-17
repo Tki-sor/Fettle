@@ -29,6 +29,7 @@ public final class HotFlags {
     public static volatile boolean BENCH_PROBES = false;
     public static volatile boolean DEBUG_PANEL_KEEP_ALIVE = false;
     public static volatile boolean KINETIC_INCREMENTAL_STRESS = true;
+    public static volatile boolean KINETIC_INCREMENTAL_CAPACITY = true;
     public static volatile boolean MOUNTED_STORAGE_FAST_PATH = true;
     public static volatile boolean FLUID_SEARCH_DEQUE = true;
     public static volatile boolean FLUID_PROPAGATOR_DEQUE = true;
@@ -61,6 +62,7 @@ public final class HotFlags {
         BENCH_PROBES = FettleConfig.benchProbes();
         DEBUG_PANEL_KEEP_ALIVE = FettleConfig.debugPanelKeepAlive();
         KINETIC_INCREMENTAL_STRESS = FettleConfig.createKineticIncrementalStress();
+        KINETIC_INCREMENTAL_CAPACITY = FettleConfig.createKineticIncrementalCapacity();
         MOUNTED_STORAGE_FAST_PATH = FettleConfig.createMountedStorageFastPath();
         FLUID_SEARCH_DEQUE = FettleConfig.createFluidSearchDeque();
         FLUID_PROPAGATOR_DEQUE = FettleConfig.createFluidPropagatorDeque();

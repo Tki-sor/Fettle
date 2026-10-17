@@ -51,6 +51,9 @@ public final class CreateMicroBenchmarks {
         if ("collisionFilter".equals(name)) {
             return collisionFilter();
         }
+        if ("kineticCapacity".equals(name)) {
+            return kineticCapacity(level, iterations);
+        }
         if ("kineticStress".equals(name)) {
             return kineticStress(level, iterations);
         }
@@ -339,6 +342,68 @@ public final class CreateMicroBenchmarks {
      * Measures the cost of {@code KineticNetwork#updateStressFor} on a real kinetic network: the exact
      * operation that sums over every member and re-validates each one with a block-entity lookup.
      */
+    /**
+     * C2: calls {@code KineticNetwork#updateCapacityFor} on the biggest network in the level with the
+     * value it already has, so only the bookkeeping strategy differs between the two runs.
+     */
+    private static String kineticCapacity(ServerLevel level, int iterations) {
+        com.simibubi.create.content.kinetics.KineticNetwork network = biggestNetworkByScan();
+        if (network == null) {
+            network = KineticBenchHelper.biggestNetwork(level);
+        }
+        if (network == null || network.sources == null || network.sources.isEmpty()) {
+            return "kineticCapacity: no populated kinetic network";
+        }
+        com.simibubi.create.content.kinetics.base.KineticBlockEntity member =
+                network.sources.keySet().iterator().next();
+        float value = network.sources.get(member);
+        int members = network.sources.size();
+        for (int i = 0; i < 2000; i++) {
+            network.updateCapacityFor(member, value);
+        }
+        long start = System.nanoTime();
+        for (int i = 0; i < iterations; i++) {
+            network.updateCapacityFor(member, value);
+        }
+        long elapsed = System.nanoTime() - start;
+        return String.format(Locale.ROOT,
+                "kineticCapacity: %.3f us/op (members=%d, %d iterations, incrementalCapacity=%s)",
+                (double) elapsed / iterations / 1000.0, members, iterations,
+                com.tkisor.fettle.config.HotFlags.KINETIC_INCREMENTAL_CAPACITY);
+    }
+
+    /** The biggest populated network across every level, found the same way the stress micro does it. */
+    private static com.simibubi.create.content.kinetics.KineticNetwork biggestNetworkByScan() {
+        try {
+            Class<?> propagator = Class.forName("com.simibubi.create.content.kinetics.TorquePropagator");
+            java.lang.reflect.Field field = propagator.getDeclaredField("networks");
+            field.setAccessible(true);
+            Map<?, ?> byLevel = (Map<?, ?>) field.get(null);
+            com.simibubi.create.content.kinetics.KineticNetwork best = null;
+            int bestSize = -1;
+            for (Object perLevel : byLevel.values()) {
+                if (!(perLevel instanceof Map<?, ?> map)) {
+                    continue;
+                }
+                for (Object candidate : map.values()) {
+                    if (!(candidate instanceof com.simibubi.create.content.kinetics.KineticNetwork network)) {
+                        continue;
+                    }
+                    if (network.sources == null || network.sources.isEmpty()) {
+                        continue;
+                    }
+                    if (network.sources.size() > bestSize) {
+                        bestSize = network.sources.size();
+                        best = network;
+                    }
+                }
+            }
+            return best;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     private static String kineticStress(ServerLevel level, int iterations) {
         try {
             com.simibubi.create.content.kinetics.KineticNetwork direct = KineticBenchHelper.biggestNetwork(level);

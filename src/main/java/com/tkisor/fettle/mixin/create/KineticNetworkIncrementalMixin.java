@@ -27,6 +27,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class KineticNetworkIncrementalMixin implements com.tkisor.fettle.alg.KineticNetworkAdjust {
 
     @Shadow private float currentCapacity;
+    @Shadow public Map<KineticBlockEntity, Float> sources;
     @Shadow private float currentStress;
     @Shadow public Map<KineticBlockEntity, Float> members;
 
@@ -82,6 +83,49 @@ public abstract class KineticNetworkIncrementalMixin implements com.tkisor.fettl
         float newStress = fettle$stressSum;
         if (currentStress != newStress) {
             currentStress = newStress;
+            KineticCounters.sync();
+            ((KineticNetwork) (Object) this).sync();
+        }
+    }
+
+    /**
+     * The capacity side of the same idea (C2). Vanilla's {@code updateCapacityFor} is
+     * {@code sources.put(be, capacity); updateCapacity();} and {@code calculateCapacity()} sums
+     * {@code sources.get(be) * getStressMultiplierForSpeed(be.getGeneratedSpeed())} over every live
+     * member, so one member change costs a full O(M) scan. The running sum makes it O(1), with the exact
+     * scan kept once per tick (reconciliation) so it cannot drift beyond that.
+     */
+    @Overwrite(remap = false)
+    public void updateCapacityFor(KineticBlockEntity be, float capacity) {
+        if (!HotFlags.KINETIC_INCREMENTAL_CAPACITY) {
+            sources.put(be, capacity);
+            ((KineticNetwork) (Object) this).updateCapacity();
+            return;
+        }
+        Float previous = sources.get(be);
+        if (previous == null) {
+            // first time we see this member: fall back to the exact scan
+            sources.put(be, capacity);
+            ((KineticNetwork) (Object) this).updateCapacity();
+            return;
+        }
+        // getActualCapacityOf is the exact expression vanilla sums (sources value times the speed
+        // multiplier), and it is public - so take the delta of it rather than duplicating the formula.
+        float before = ((KineticNetwork) (Object) this).getActualCapacityOf(be);
+        sources.put(be, capacity);
+        float after = ((KineticNetwork) (Object) this).getActualCapacityOf(be);
+        fettle$capacitySum += after - before;
+        KineticCounters.incrementalUpdate();
+
+        if (fettle$lastReconcileTick != ServerTickClock.tick()) {
+            // reconciliation: one exact scan per tick, which also prunes stale members
+            KineticCounters.reconcile();
+            ((KineticNetwork) (Object) this).updateCapacity();
+            return;
+        }
+        float newCapacity = fettle$capacitySum;
+        if (currentCapacity != newCapacity) {
+            currentCapacity = newCapacity;
             KineticCounters.sync();
             ((KineticNetwork) (Object) this).sync();
         }

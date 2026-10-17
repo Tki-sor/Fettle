@@ -11,6 +11,7 @@
 | `getAllRecipesFor` 列表缓存 | ✅ 已验证 | 开 | docs 05 / 08 |
 | 动能网络校验查询 memo | ✅ 已验证 | 开 | 442,200 → 201 次查询（**4.5–5×**） |
 | 动能增量应力 O(1) + 每 tick 对账 | ✅ 已验证 | 开 | 6.612 → 0.031 µs/op（**213×**）；`afterReconcile` 0 mismatch |
+| 动能容量侧增量（C2） | ⚠️ **已实现、默认关**（收益 0.2→0.08 µs/次，微秒级；值级 parity 未测） | **关** | 实测修正前提：`calculateCapacity()` 只遍历**容量源**（实测 1 个）而非全部成员（201）→ 不成对称项；门禁 PASS 但差分未覆盖容量路径。见 [28](28-kinetic-capacity.md) |
 | 列车碰撞候选过滤（+移动守卫） | ✅ 已验证 | 开 | 候选 **−94%**；差分 `fresh`/`stale_guarded` **0 mismatch**（`stale_raw` 3 missed 作为反例保留） |
 | TravellingPoint 位置 memo | ✅ 已验证 | 开 | 30–33 → 2.4–5.5 ns/op（**6–13×**） |
 | `TrackGraph#getConnectionsFrom` 分配 | ✅ 已验证 | 开 | docs 05 / 10 |

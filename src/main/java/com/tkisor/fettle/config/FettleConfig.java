@@ -31,6 +31,7 @@ public final class FettleConfig {
     private static final ModConfigSpec.IntValue BE_SLEEPING_BLACKLIST_WAKES;
     private static final ModConfigSpec.BooleanValue CREATE_FLUID_SEARCH_DEQUE;
     private static final ModConfigSpec.BooleanValue CREATE_FLUID_PROPAGATOR_DEQUE;
+    private static final ModConfigSpec.BooleanValue CREATE_KINETIC_INCREMENTAL_CAPACITY;
     private static final ModConfigSpec.BooleanValue CREATE_MOUNTED_STORAGE_FAST_PATH;
     private static final ModConfigSpec.BooleanValue BENCH_PROBES;
     private static final ModConfigSpec.BooleanValue DEBUG_PANEL_KEEP_ALIVE;
@@ -157,6 +158,14 @@ public final class FettleConfig {
                         "identical. These run on pipe edits / pressure recalculation, so this removes spikes in",
                         "large pipe networks rather than steady-state tick cost. See docs/fettle/25-fluid-propagator-deque.md.")
                 .define("fluidPropagatorDeque", true);
+        CREATE_KINETIC_INCREMENTAL_CAPACITY = b
+                .comment("KineticNetwork#updateCapacityFor: keep a running capacity sum instead of recomputing",
+                        "calculateCapacity(), with an exact reconciliation scan once per tick (same scheme as",
+                        "kineticIncrementalStress). DEFAULT false on purpose: calculateCapacity() only walks the",
+                        "capacity SOURCES (motors/generators, usually 1-3 per network), not every member, so the",
+                        "measured win is ~2x on a microsecond-scale call, and the value-level parity of the running",
+                        "sum against calculateCapacity() has not been measured yet. See docs/fettle/28.")
+                .define("kineticIncrementalCapacity", false);
         CREATE_MOUNTED_STORAGE_FAST_PATH = b
                 .comment("MountedStorageManager#tick: skip the two per-sync HashMap allocations when a",
                         "contraption has no synced item/fluid storage. The vanilla path is otherwise a no-op,",
@@ -264,6 +273,11 @@ public final class FettleConfig {
 
     public static boolean createBeltShaftLookup() {
         return createEnabled() && get(CREATE_BELT_SHAFT, true);
+    }
+
+    public static boolean createKineticIncrementalCapacity() {
+        return createEnabled() && boolOverride("kineticIncrementalCapacity",
+                get(CREATE_KINETIC_INCREMENTAL_CAPACITY, true));
     }
 
     public static boolean createFluidPropagatorDeque() {
