@@ -30,6 +30,7 @@ public final class FettleConfig {
     private static final ModConfigSpec.IntValue BE_SLEEPING_MAX_SKIP_TICKS;
     private static final ModConfigSpec.IntValue BE_SLEEPING_BLACKLIST_WAKES;
     private static final ModConfigSpec.BooleanValue BE_SLEEPING_AUTO_WHITELIST;
+    private static final ModConfigSpec.BooleanValue BE_SLEEPING_HEARTBEAT_CHECK;
     private static final ModConfigSpec.IntValue BE_SLEEPING_AUTO_MIN_TICKS;
     private static final ModConfigSpec.BooleanValue CREATE_FLUID_SEARCH_DEQUE;
     private static final ModConfigSpec.BooleanValue CREATE_FLUID_PROPAGATOR_DEQUE;
@@ -99,6 +100,13 @@ public final class FettleConfig {
                 .comment("Auto-blacklist: if a whitelisted class is woken this many times, it is dropped from the",
                         "whitelist for the rest of the run (it is evidently not idle).")
                 .defineInRange("blacklistAfterWakes", 20, 1, 1000000);
+        BE_SLEEPING_HEARTBEAT_CHECK = b
+                .comment("Safety net for the sleeping pilot: once per heartbeat, compare a class's serialised state",
+                        "with the previous heartbeat. If it moved while the tick was being skipped, the class does",
+                        "per-tick work without calling setChanged (a furnace advancing its cook progress is the",
+                        "canonical case) - it is blacklisted and woken instead of running 20x slower. Costs one",
+                        "NBT sample per class per heartbeat. See docs/fettle/30.")
+                .define("heartbeatCheck", true);
         BE_SLEEPING_AUTO_WHITELIST = b
                 .comment("C7: derive the whitelist from the observation layer instead of hand-writing class names.",
                         "A class is adopted once it has ticked autoWhitelistMinTicks times with no setChanged and no",
@@ -338,6 +346,10 @@ public final class FettleConfig {
 
     public static int beSleepingMaxSkipTicks() {
         return get(BE_SLEEPING_MAX_SKIP_TICKS, 20);
+    }
+
+    public static boolean beSleepingHeartbeatCheck() {
+        return boolOverride("heartbeatCheck", get(BE_SLEEPING_HEARTBEAT_CHECK, true));
     }
 
     public static boolean beSleepingAutoWhitelist() {

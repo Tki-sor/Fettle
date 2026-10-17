@@ -402,6 +402,37 @@ public final class BeSleepController {
         });
     }
 
+    /**
+     * Heartbeat self-check (the answer to "what if the tick does time-based work without ever calling
+     * setChanged?"): once per heartbeat, compare the block entity's serialised state with the one from the
+     * previous heartbeat. A class whose state keeps moving while its tick is being skipped is doing
+     * per-tick work - a furnace advances its cook progress exactly like that - so it is blacklisted and
+     * woken instead of being silently slowed to one tick in twenty.
+     *
+     * <p>One sample per class per heartbeat keeps the cost negligible (no per-instance NBT).
+     */
+    private static void heartbeatCheck(BlockEntity be) {
+        if (be.getLevel() == null) {
+            return;
+        }
+        String name = className(be);
+        try {
+            net.minecraft.nbt.CompoundTag tag = be.saveWithoutMetadata(be.getLevel().registryAccess());
+            int hash = tag.toString().hashCode();
+            Integer previous = HEARTBEAT_STATE.put(name, hash);
+            if (previous != null && previous != hash && BLACKLIST.add(name)) {
+                HEARTBEAT_STATE.remove(name);
+                Fettle.LOGGER.info("[Fettle] BE sleeping: {} blacklisted - its state moved across heartbeats without calling setChanged (time-based work)",
+                        name);
+            }
+        } catch (Throwable ignored) {
+            // best effort: never let the safety check break the tick path
+        }
+    }
+
+    /** Last serialised-state hash per class, sampled once per heartbeat. */
+    private static final Map<String, Integer> HEARTBEAT_STATE = new java.util.concurrent.ConcurrentHashMap<>();
+
     /** Classes adopted by {@link #autoAdopted(BlockEntity)}, logged once each. */
     private static final java.util.Set<Class<?>> AUTO_ADOPTED =
             java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
@@ -435,6 +466,9 @@ public final class BeSleepController {
                     state.fettle$skippedTicks(0);
                     stat[2]++;
                     stat[0]++;
+                    if (HotFlags.BE_SLEEPING_HEARTBEAT_CHECK) {
+                        heartbeatCheck(be);
+                    }
                     return true;
                 }
                 state.fettle$skippedTicks(skipped);

@@ -27,6 +27,7 @@ public final class HotFlags {
     public static volatile int BE_SLEEPING_MAX_SKIP_TICKS = 20;
     public static volatile int BE_SLEEPING_BLACKLIST_WAKES = 20;
     public static volatile boolean BE_SLEEPING_AUTO_WHITELIST = false;
+    public static volatile boolean BE_SLEEPING_HEARTBEAT_CHECK = true;
     public static volatile int BE_SLEEPING_AUTO_MIN_TICKS = 1200;
     public static volatile boolean BENCH_PROBES = false;
     public static volatile boolean DEBUG_PANEL_KEEP_ALIVE = false;
@@ -62,6 +63,7 @@ public final class HotFlags {
         BE_SLEEPING_MAX_SKIP_TICKS = FettleConfig.beSleepingMaxSkipTicks();
         BE_SLEEPING_BLACKLIST_WAKES = FettleConfig.beSleepingBlacklistWakes();
         BE_SLEEPING_AUTO_WHITELIST = FettleConfig.beSleepingAutoWhitelist();
+        BE_SLEEPING_HEARTBEAT_CHECK = FettleConfig.beSleepingHeartbeatCheck();
         BE_SLEEPING_AUTO_MIN_TICKS = FettleConfig.beSleepingAutoMinTicks();
         BENCH_PROBES = FettleConfig.benchProbes();
         DEBUG_PANEL_KEEP_ALIVE = FettleConfig.debugPanelKeepAlive();
