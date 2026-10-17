@@ -70,3 +70,41 @@ if (previous != null && previous != hash && BLACKLIST.add(name)) {
 2. 用 `debugTarget` 直接指定 `FurnaceBlockEntity` 并复现"沉睡→心跳→状态变化→拉黑"的日志；
 3. 再跑一次 C7 的对照：`heartbeatCheck=false` 应无拉黑日志、`=true` 应出现且**只出现一次**；
 4. 过了这两条，才能把 `heartbeatCheck` 从 🧪 升为 ✅，并考虑把 `autoWhitelist` 的安全性结论一并更新。
+
+## 30.7 把 20–40 tick 的损失**降到 0**：把状态检查提前到观察期
+
+30.2 的心跳自检是在"**已经睡着之后**"才发现问题，所以必然会丢掉最多 `maxSkipTicks`（默认 20）个 tick。
+更好的做法是把同一个检查搬到**观察期**——那时实例还在**正常 tick**，所以拒掉它**一个 tick 都不丢**：
+
+```java
+// 观察期每个 tick（每类采样一次）：
+int hash = be.saveWithoutMetadata(level.registryAccess()).toString().hashCode();
+if (previous != null && previous != hash && BLACKLIST.add(name)) {
+    // 状态在"正常 tick"期间自己在动 => 它做按 tick 推进的工作 => 永不沉睡
+    log("... state moves while it is still being ticked (per-tick work, never slept, no tick lost)");
+}
+```
+
+于是流程变成：
+
+| 场景 | 结果 | 损失 |
+| --- | --- | --- |
+| 熔炉**没在烧**时观察 | 状态静止 → 允许沉睡 | 0（它本来就没做事） |
+| 玩家投煤 → `setChanged` | 既有唤醒条件立刻唤醒 + 重新观察 | 0 |
+| 熔炉**正在烧**时观察 | 每 tick `BurnTime/CookTime` 在变 → **观察期就被拉黑** | **0**（从未睡过） |
+| 计时工作**在无任何唤醒事件**下开始 | 只有心跳兜底能发现 | ≤ 20 tick，一次，之后永久拉黑 |
+
+所以常见形态（熔炉/钟/一切"有人在用就会变状态"的机器）**损失为 0**；
+剩下那条"静默开始计时工作"的路径本来就极少见（任何状态变化都会触发唤醒条件），而且只损失一次。
+
+### 还能再进一步（未做）
+
+把心跳节奏做成**指数启动**：第 1、2、4、8… 个跳过 tick 就验证一次，验证多次都没问题才放宽到 20。
+这样即便走的是兜底路径，初始损失也只有 **1 tick**。
+
+### 状态：仍是 🧪（代码已入库，端到端验证没跑完）
+
+`observeCheck` 已实现并通过编译；但本轮的验证脚本在服务器**尚未启动完成**时就跑了（RCON 端口未监听，
+世界因为前面几个场景累积了大量强制加载区块，启动已超过 2 分钟），因此**还没有"日志里出现拉黑行"的运行记录**。
+验证方法同 30.6：让一个**正在燃烧**的熔炉被观察到，日志应出现
+`state moves while it is still being ticked`，且 `FurnaceBlockEntity` 从未出现在 `sleepRegistered` 里。

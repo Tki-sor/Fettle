@@ -430,6 +430,34 @@ public final class BeSleepController {
         }
     }
 
+    /**
+     * Observation-phase counterpart of {@link #heartbeatCheck}: sampled once per class per observed tick.
+     * Detecting per-tick work here is what makes the pilot lossless for classes like the furnace - they
+     * are rejected while they are still being ticked normally, instead of being slept first and caught
+     * by the heartbeat check afterwards.
+     */
+    private static void observeCheck(BlockEntity be) {
+        if (be.getLevel() == null) {
+            return;
+        }
+        String name = className(be);
+        try {
+            net.minecraft.nbt.CompoundTag tag = be.saveWithoutMetadata(be.getLevel().registryAccess());
+            int hash = tag.toString().hashCode();
+            Integer previous = OBSERVE_STATE.put(name, hash);
+            if (previous != null && previous != hash && BLACKLIST.add(name)) {
+                OBSERVE_STATE.remove(name);
+                Fettle.LOGGER.info("[Fettle] BE sleeping: {} blacklisted - its state moves while it is still being ticked (per-tick work, never slept, no tick lost)",
+                        name);
+            }
+        } catch (Throwable ignored) {
+            // best effort: never let the safety check break the tick path
+        }
+    }
+
+    /** Last serialised-state hash per class during observation. */
+    private static final Map<String, Integer> OBSERVE_STATE = new java.util.concurrent.ConcurrentHashMap<>();
+
     /** Last serialised-state hash per class, sampled once per heartbeat. */
     private static final Map<String, Integer> HEARTBEAT_STATE = new java.util.concurrent.ConcurrentHashMap<>();
 
@@ -478,6 +506,12 @@ public final class BeSleepController {
 
             int observed = state.fettle$observedTicks() + 1;
             state.fettle$observedTicks(observed);
+            if (HotFlags.BE_SLEEPING_HEARTBEAT_CHECK) {
+                // Zero-loss guard: while we are still ticking the instance normally, watch its serialised
+                // state. A class that moves state on its own (a furnace advancing burn/cook progress) is
+                // therefore rejected BEFORE it is ever put to sleep, so no tick is lost at all.
+                observeCheck(be);
+            }
             if (state.fettle$sawChange()) {
                 state.fettle$sawChange(false);
                 state.fettle$observedTicks(0);
