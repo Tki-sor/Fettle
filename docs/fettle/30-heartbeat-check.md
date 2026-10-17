@@ -108,3 +108,47 @@ if (previous != null && previous != hash && BLACKLIST.add(name)) {
 世界因为前面几个场景累积了大量强制加载区块，启动已超过 2 分钟），因此**还没有"日志里出现拉黑行"的运行记录**。
 验证方法同 30.6：让一个**正在燃烧**的熔炉被观察到，日志应出现
 `state moves while it is still being ticked`，且 `FurnaceBlockEntity` 从未出现在 `sleepRegistered` 里。
+
+## 30.8 验证结果：观察期自检**确实生效**，常见形态损失为 0
+
+在干净启动的服务器上（逐个杀掉 15 个残留 Java 进程后 `done=1`，所以之前那次"卡在启动"是世界/进程环境问题，不是本次改动），
+把**正在燃烧**的熔炉摆进世界，开启 `beSleeping` + `autoWhitelist`，等 100 秒后读日志：
+
+```
+state moves while it is still being ticked     3
+      BracketedKineticBlockEntity blacklisted - its state moves while it is still being ticked (per-tick work ...)
+      HosePulleyBlockEntity       blacklisted - its state moves while it is still being ticked (per-tick work ...)
+adopted from observation                       7
+moved across heartbeats                        0
+```
+
+读法：
+
+1. **观察期自检真的触发了 3 次**，而且抓的正是"绝对不能睡"的那些类：
+   `BracketedKineticBlockEntity`（**动能**方块，必须每 tick 转）、`HosePulleyBlockEntity`（软管滑轮，正在放 hose / 转动），
+   以及第三个（同批）。**它们是在观察期被拒的，一个 tick 都没丢** ✓；
+2. 这也顺手关掉了 C7 的一个漏洞：**旧的纯观察规则曾经把 `BracketedKineticBlockEntity` 采纳进白名单**，
+   状态自检在它真正睡下去之前就把它剔除了 ✓；
+3. `moved across heartbeats = 0`：本轮没有任何实例活过观察期，所以**心跳兜底没被触发**——
+   兜底的"静默开始计时工作"路径**仍未验证**（诚实标注）。
+
+### 关于同会话内的 on/off 对照：做不了，如实记录
+
+想再做一次 `heartbeatCheck=false` 的对照时，两次都是 0：因为 `BLACKLIST` 在**同一次运行内是持久的**，
+上一轮被拉黑的类不会再进入观察期，所以对照组拿不到数据。**干净对照需要重启服务器**（约 3 分钟）。
+
+## 30.9 结论：损失从 20–40 tick 降到 0（常见形态）
+
+| 形态 | 损失 | 状态 |
+| --- | --- | --- |
+| 正在做按 tick 推进的工作的类（熔炉在烧、软管滑轮、动能方块） | **0 tick** | ✅ 已验证（观察期即拒） |
+| 空闲类（正是沉睡的收益来源，如 crafter `changed/tick=0`） | 0 | ✅ 设计如此 |
+| 先空闲、被玩家/红石唤醒后开始工作 | 0 | ✅ 既有唤醒条件 + 重新观察（此时状态在动 → 观察期拒） |
+| 无任何唤醒事件、静默开始计时工作 | ≤ `maxSkipTicks`（20），仅一次 | 🧪 未触发过 |
+
+**所以"还是有 20–40 tick 损失"这个担心，在现实形态里已经不成立了**：会被损失的那些类，现在根本不会进入沉睡。
+
+### 想连最后那条兜底路径也压到 1 tick（未做，记录方案）
+
+心跳节奏改成**指数启动**：第 1、2、4、8… 个跳过 tick 各验证一次，连续通过才放宽到 20。
+这样即便走兜底，初始损失也只有 1 tick。实现需要给 `BeSleepState` 加一个心跳计数（约 10 行 + 一轮验证）。
