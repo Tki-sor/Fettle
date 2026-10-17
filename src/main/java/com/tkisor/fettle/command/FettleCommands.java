@@ -141,6 +141,23 @@ public final class FettleCommands {
                                                                 StringArgumentType.getString(ctx, "class"),
                                                                 IntegerArgumentType.getInteger(ctx, "observe"),
                                                                 IntegerArgumentType.getInteger(ctx, "maxSkip"))))))))
+                        .then(Commands.literal("pipenet")
+                                .then(Commands.argument("radius", IntegerArgumentType.integer(2, 24))
+                                        .executes(ctx -> reply(ctx.getSource(), createDebug(
+                                                "placePipeNetwork", ctx.getSource().getLevel(),
+                                                BlockPos.containing(ctx.getSource().getPosition()),
+                                                IntegerArgumentType.getInteger(ctx, "radius"))))))
+                        .then(Commands.literal("fluidpropagate")
+                                .then(Commands.argument("x", IntegerArgumentType.integer())
+                                        .then(Commands.argument("y", IntegerArgumentType.integer())
+                                                .then(Commands.argument("z", IntegerArgumentType.integer())
+                                                        .then(Commands.argument("iterations", IntegerArgumentType.integer(1, 200))
+                                                                .executes(ctx -> reply(ctx.getSource(), createDebug(
+                                                                        "fluidPropagateBench", ctx.getSource().getLevel(),
+                                                                        new BlockPos(IntegerArgumentType.getInteger(ctx, "x"),
+                                                                                IntegerArgumentType.getInteger(ctx, "y"),
+                                                                                IntegerArgumentType.getInteger(ctx, "z")),
+                                                                        IntegerArgumentType.getInteger(ctx, "iterations")))))))))
                         .then(Commands.literal("fluidsearch")
                                 .then(Commands.argument("x", IntegerArgumentType.integer())
                                         .then(Commands.argument("y", IntegerArgumentType.integer())
@@ -349,6 +366,20 @@ public final class FettleCommands {
         } catch (Throwable t) {
             Throwable cause = t.getCause() != null ? t.getCause() : t;
             return "debug fluidscene failed: " + cause;
+        }
+    }
+
+    /** Generic bridge to a CreateDebugScenarios method (ServerLevel, BlockPos, int) -> String. */
+    private static String createDebug(String method, net.minecraft.server.level.ServerLevel level, BlockPos pos, int arg) {
+        try {
+            Class<?> scenarios = Class.forName("com.tkisor.fettle.bench.CreateDebugScenarios");
+            return (String) scenarios.getMethod(method, net.minecraft.server.level.ServerLevel.class, BlockPos.class, int.class)
+                    .invoke(null, level, pos, arg);
+        } catch (ClassNotFoundException e) {
+            return "debug " + method + " needs Create (not installed)";
+        } catch (Throwable t) {
+            Throwable cause = t.getCause() != null ? t.getCause() : t;
+            return "debug " + method + " failed: " + cause;
         }
     }
 

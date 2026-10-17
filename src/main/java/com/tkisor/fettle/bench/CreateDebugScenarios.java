@@ -156,6 +156,111 @@ public final class CreateDebugScenarios {
         return sb.toString();
     }
 
+    /** A flat grid of fluid pipes, all connected to their neighbours - a large fluid network. */
+    public static String placePipeNetwork(ServerLevel level, BlockPos origin, int radius) {
+        int r = Math.max(2, Math.min(radius, 24));
+        var pipeState = com.simibubi.create.AllBlocks.FLUID_PIPE.get().defaultBlockState();
+        int placed = 0;
+        for (int x = -r; x <= r; x++) {
+            for (int z = -r; z <= r; z++) {
+                BlockPos pos = origin.offset(x, 0, z);
+                level.setChunkForced(pos.getX() >> 4, pos.getZ() >> 4, true);
+                level.getChunk(pos);
+                if (level.setBlock(pos, pipeState, 3)) {
+                    placed++;
+                }
+            }
+        }
+        return String.format(Locale.ROOT, "pipeNetwork r=%d pipes=%d at %s", r, placed, origin.toShortString());
+    }
+
+    /**
+     * Times the real FluidPropagator#propagateChangedPipe over a pipe network and hashes the observable
+     * network state (per connection: present / has flow / has network, plus which pipes ended up without
+     * pressure). Both queue implementations must produce the same traversal, hence the same hash.
+     */
+    public static String fluidPropagateBench(ServerLevel level, BlockPos pos, int iterations) {
+        var state = level.getBlockState(pos);
+        java.lang.reflect.Method propagate;
+        try {
+            propagate = com.simibubi.create.content.fluids.FluidPropagator.class.getDeclaredMethod(
+                    "propagateChangedPipe", net.minecraft.world.level.LevelAccessor.class, BlockPos.class,
+                    net.minecraft.world.level.block.state.BlockState.class);
+            propagate.setAccessible(true);
+        } catch (Throwable t) {
+            return "fluidPropagate: cannot resolve propagateChangedPipe: " + t;
+        }
+        int runs = Math.max(1, Math.min(iterations, 200));
+        long total = 0L;
+        long first = 0L;
+        for (int i = 0; i < runs; i++) {
+            long start = System.nanoTime();
+            try {
+                propagate.invoke(null, level, pos, state);
+            } catch (Throwable t) {
+                Throwable cause = t.getCause() != null ? t.getCause() : t;
+                return "fluidPropagate: call failed: " + cause;
+            }
+            long elapsed = System.nanoTime() - start;
+            if (i == 0) {
+                first = elapsed;
+            } else {
+                total += elapsed;
+            }
+        }
+        long[] stats = new long[3];
+        hashPipeNetwork(level, pos, stats);
+        return String.format(Locale.ROOT,
+                "fluidPropagateBench: %d calls, avg=%.1f us/call, first=%.1f us, pipes=%d, noPressure=%d, hash=0x%016x, dequeFlag=%s",
+                runs, total / (double) Math.max(1, runs - 1) / 1000.0, first / 1000.0, stats[0], stats[1], stats[2],
+                com.tkisor.fettle.config.HotFlags.FLUID_PROPAGATOR_DEQUE);
+    }
+
+    /** Walks the pipe network with public APIs and folds its observable state into one hash. */
+    private static void hashPipeNetwork(ServerLevel level, BlockPos start, long[] out) {
+        java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
+        java.util.Set<BlockPos> seen = new java.util.HashSet<>();
+        queue.addLast(start);
+        long hash = 0xCBF29CE484222325L;
+        long pipes = 0L;
+        long noPressure = 0L;
+        while (!queue.isEmpty()) {
+            BlockPos pos = queue.pollFirst();
+            if (!seen.add(pos)) {
+                continue;
+            }
+            var pipe = com.simibubi.create.content.fluids.FluidPropagator.getPipe(level, pos);
+            if (pipe == null) {
+                continue;
+            }
+            pipes++;
+            hash ^= pos.asLong();
+            hash *= 0x100000001B3L;
+            boolean pressure = pipe.hasAnyPressure();
+            if (!pressure) {
+                noPressure++;
+            }
+            hash ^= pressure ? 1L : 0L;
+            hash *= 0x100000001B3L;
+            for (Direction direction : net.createmod.catnip.data.Iterate.directions) {
+                var connection = pipe.getConnection(direction);
+                boolean present = connection != null;
+                boolean flow = present && connection.hasFlow();
+                boolean network = present && connection.hasNetwork();
+                hash ^= (present ? 1L : 0L) | (flow ? 2L : 0L) | (network ? 4L : 0L);
+                hash *= 0x100000001B3L;
+                BlockPos next = pos.relative(direction);
+                if (present && !seen.contains(next)
+                        && com.simibubi.create.content.fluids.FluidPropagator.getPipe(level, next) != null) {
+                    queue.addLast(next);
+                }
+            }
+        }
+        out[0] = pipes;
+        out[1] = noPressure;
+        out[2] = hash;
+    }
+
     /** Places {@code count} shafts in a line so they merge into one kinetic network. */
     public static String placeShaftLine(ServerLevel level, BlockPos origin, int count, int y) {
         BlockState shaft = AllBlocks.SHAFT.get()

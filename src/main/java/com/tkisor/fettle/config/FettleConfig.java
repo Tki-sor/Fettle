@@ -30,6 +30,7 @@ public final class FettleConfig {
     private static final ModConfigSpec.IntValue BE_SLEEPING_MAX_SKIP_TICKS;
     private static final ModConfigSpec.IntValue BE_SLEEPING_BLACKLIST_WAKES;
     private static final ModConfigSpec.BooleanValue CREATE_FLUID_SEARCH_DEQUE;
+    private static final ModConfigSpec.BooleanValue CREATE_FLUID_PROPAGATOR_DEQUE;
     private static final ModConfigSpec.BooleanValue CREATE_MOUNTED_STORAGE_FAST_PATH;
     private static final ModConfigSpec.BooleanValue BENCH_PROBES;
     private static final ModConfigSpec.BooleanValue DEBUG_PANEL_KEEP_ALIVE;
@@ -150,6 +151,12 @@ public final class FettleConfig {
                         "60 calls, while the call is ~1.5x faster (360 vs 540-572 us). Whole-server MSPT on a",
                         "genuinely draining rig is still unmeasured. See docs/fettle/23-fluid-search-deque.md.")
                 .define("fluidSearchDeque", true);
+        CREATE_FLUID_PROPAGATOR_DEQUE = b
+                .comment("FluidPropagator#propagateChangedPipe / #resetAffectedFluidNetworks: dequeue the BFS with",
+                        "an ArrayDeque instead of List.remove(0). FIFO in both cases, so visit order and result are",
+                        "identical. These run on pipe edits / pressure recalculation, so this removes spikes in",
+                        "large pipe networks rather than steady-state tick cost. See docs/fettle/25-fluid-propagator-deque.md.")
+                .define("fluidPropagatorDeque", true);
         CREATE_MOUNTED_STORAGE_FAST_PATH = b
                 .comment("MountedStorageManager#tick: skip the two per-sync HashMap allocations when a",
                         "contraption has no synced item/fluid storage. The vanilla path is otherwise a no-op,",
@@ -257,6 +264,10 @@ public final class FettleConfig {
 
     public static boolean createBeltShaftLookup() {
         return createEnabled() && get(CREATE_BELT_SHAFT, true);
+    }
+
+    public static boolean createFluidPropagatorDeque() {
+        return createEnabled() && boolOverride("fluidPropagatorDeque", get(CREATE_FLUID_PROPAGATOR_DEQUE, true));
     }
 
     public static boolean createFluidSearchDeque() {

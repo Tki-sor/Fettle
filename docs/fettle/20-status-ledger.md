@@ -18,6 +18,7 @@
 | ① 车载存储同步快速路径（`MountedStorageManager#tick`） | ⚠️ **稳态无收益** | 开 | 冷态 8.50 ns/op & 51.3 B/op → C2 后 1.17 ns/op & **0.0 B/op**；逃逸分析把两个 HashMap 消掉了。见 [22](22-allocation-optimisations.md) |
 | ② `SmartBlockEntity#tick` 迭代器/lambda | ⚠️ **前提不成立** | — | 实测 **0.0 B/op**，运行时没有可见分配，未改代码。见 [22](22-allocation-optimisations.md) |
 | 流体 BFS 出队（F1） | ✅ **已验证**（真实 5000 格水体 ~1.5x；accepted/leftover/顺序敏感哈希逐格一致） | **开** | ArrayDeque 替换 ArrayList.remove(0)：纯队列 519x；稳态 360 vs 540-572 us/call；六次运行 accepted=439、leftover=442、hash 全同；APPLY ✅。整机 MSPT 未测（装置泵不转）。见 [23](23-fluid-search-deque.md) |
+| 流体传播 BFS（F1 ③，FluidPropagator×2） | ⚠️ **一致性已验证、性能未证实**（网格 1089 管道均值 -13%，单轮反转） | 开 | ArrayDeque 替换 List.remove(0)；6 次运行 pipes=1089/noPressure=1089/hash 全同；窄前沿网格收益小。见 [25](25-fluid-propagator-deque.md) |
 | 面板聚合节流 | ⚠️ **未证实** | **关（1）** | 脚手架场景面板段 −72%；自然激活客户端场景 0.5210 vs 0.5302 ms **无差异**。见 [19](19-client-spark-test.md) |
 | 沉睡试点：观察层 | ✅ 已验证 | 关（`observe.enabled`） | 逐类 tick/setChanged/sync 计数 + `fettle-observe.csv` 长期采集 |
 | 沉睡试点：白名单沉睡 + 心跳 | ✅ 已验证 | 关（`beSleeping.enabled`，白名单空） | 稳态 **19:1**（95% 跳过），实测 19.08 / 19.10 |

@@ -15,6 +15,8 @@
     "BeltBlockMixin",
     "MountedStorageFastPathMixin",
     "fluids.FluidManipulationAccessor",
+    "fluids.FluidPropagatorDequeMixin",
+    "fluids.PipeConnectionAccessor",
     "fluids.FluidManipulationSearchMixin",
     "FactoryPanelBehaviourMixin",
     "PackageItemMixin",
